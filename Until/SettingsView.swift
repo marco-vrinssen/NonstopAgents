@@ -10,6 +10,29 @@ final class SettingsDraft {
     var helperMessage: String?
 }
 
+/// Toolbar tabs that crossfade and animate the window to each tab's height, like the
+/// settings windows of Apple's own apps.
+final class SettingsTabs: NSTabViewController {
+    /// The size SwiftUI wants for a tab: its fixed width and its content's height.
+    static func size(of item: NSTabViewItem?) -> CGSize? {
+        (item?.viewController as? NSHostingController<AnyView>)?.sizeThatFits(in: CGSize(width: 500, height: 10_000))
+    }
+
+    override func tabView(_ tabView: NSTabView, didSelect item: NSTabViewItem?) {
+        super.tabView(tabView, didSelect: item)
+        guard let window = view.window, let content = window.contentView, let size = Self.size(of: item) else { return }
+        // Grow or shrink from the bottom so the toolbar stays where it is.
+        var frame = window.frame
+        frame.size.height += size.height - content.frame.height
+        frame.origin.y = window.frame.maxY - frame.height
+        // The animator resizes without blocking, so it runs together with the crossfade.
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = window.animationResizeTime(frame)
+            window.animator().setFrame(frame, display: true)
+        }
+    }
+}
+
 /// The settings window: toolbar tabs, the native macOS settings layout, one grouped form per tab.
 /// The window takes each tab's height, so short tabs do not scroll.
 @MainActor
@@ -21,11 +44,13 @@ enum SettingsWindow {
             ("Power", "bolt", AnyView(PowerPane(model: model, draft: draft))),
             ("Agents", "sparkles", AnyView(AgentsPane(model: model, draft: draft))),
         ]
-        let tabs = NSTabViewController()
+        let tabs = SettingsTabs()
         tabs.tabStyle = .toolbar
+        tabs.transitionOptions = [.crossfade, .allowUserInteraction]
         for (label, symbol, pane) in panes {
             let host = NSHostingController(rootView: pane)
-            host.sizingOptions = .preferredContentSize
+            // SettingsTabs sizes the window itself, so the panes set no size constraints.
+            host.sizingOptions = []
             // The tab view controller shows the selected tab's title as the window title.
             host.title = label
             let item = NSTabViewItem(viewController: host)
@@ -37,6 +62,7 @@ enum SettingsWindow {
         window.styleMask = [.titled, .closable]
         window.toolbarStyle = .preference
         window.isReleasedWhenClosed = false
+        if let first = SettingsTabs.size(of: tabs.tabViewItems.first) { window.setContentSize(first) }
         window.center()
         return window
     }
