@@ -32,6 +32,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         refresh()
         // Launch flags for screenshots and manual testing.
         if CommandLine.arguments.contains("--settings") { openSettings() }
+        if let i = CommandLine.arguments.firstIndex(of: "--snapshot"), i + 1 < CommandLine.arguments.count {
+            SettingsView.snapshot(model: model, to: CommandLine.arguments[i + 1])
+            NSApp.terminate(nil)
+        }
         if CommandLine.arguments.contains("--menu") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) { self.showMenu() }
         }

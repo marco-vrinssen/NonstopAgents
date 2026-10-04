@@ -110,9 +110,34 @@ struct Sighting {
     let agent: Agent
     /// A headless run that exits when its task is done, so being alive means working.
     let oneShot: Bool
+    /// The agent's own report of whether it is mid-turn, when it publishes one.
+    var status: Bool?
 }
 
-/// Turns CPU samples of each agent's process tree into working or quiet.
+/// Claude Code reports each session as busy, waiting or idle in ~/.claude/sessions/<pid>.json.
+/// Not a stable interface, so anything unexpected falls back to the activity heuristic.
+enum ClaudeSessions {
+    /// The ~/.claude folder; inside the App Sandbox only after the user grants access.
+    nonisolated(unsafe) static var folder: URL?
+
+    static func status(pid: pid_t, started: TimeInterval) -> Bool? {
+        guard let url = folder?.appendingPathComponent("sessions/\(pid).json"),
+              let modified = (try? FileManager.default.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date,
+              // A file older than the process belongs to an earlier process with the same pid.
+              modified.timeIntervalSince1970 >= started - 2,
+              let data = try? Data(contentsOf: url),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              json["pid"] as? Int == Int(pid) else { return nil }
+        switch json["status"] as? String {
+        case "busy": return true
+        case "idle", "waiting": return false
+        default: return nil
+        }
+    }
+}
+
+/// Decides which agents are working from their own status when they publish one,
+/// and otherwise from the CPU of their process tree, their tool processes and sleep assertions.
 ///
 /// Measured on Apple Silicon: an agent idling at its prompt uses 0.1 to 0.8 % of a core,
 /// an agent streaming a reply or running tools uses 2 to 30 %. Long silent waits on the
@@ -126,6 +151,8 @@ final class Tracker {
     var toolWindow: TimeInterval = 10 * 60
     /// Children started this soon after the agent are its services, such as MCP servers.
     var startupGrace: TimeInterval = 15
+    /// Startup work (loading, connecting MCP servers) is not agent work.
+    var warmup: TimeInterval = 30
     /// An agent stays working this long after its last sign of work.
     var quietAfter: TimeInterval = 60
 
@@ -133,8 +160,9 @@ final class Tracker {
     private var lastSample: TimeInterval?
     private(set) var lastActive: [pid_t: TimeInterval] = [:]
 
-    /// Returns the root pids that are working right now.
-    func update(table: [pid_t: Proc], sightings: [Sighting], now: TimeInterval) -> Set<pid_t> {
+    /// Returns the root pids that are working right now. `asserting` holds the pids that
+    /// keep the Mac awake themselves, such as an agent's caffeinate child.
+    func update(table: [pid_t: Proc], sightings: [Sighting], asserting: Set<pid_t> = [], now: TimeInterval) -> Set<pid_t> {
         let elapsed = lastSample.map { now - $0 } ?? 0
         let since = lastSample ?? now
 
@@ -155,19 +183,30 @@ final class Tracker {
         var working: Set<pid_t> = []
         for sighting in sightings {
             guard let root = table[sighting.pid] else { continue }
-            var busy = sighting.oneShot
-            var load = rate(root)
+            // An agent's own status wins; only a heavy background job adds to it.
+            let precise = sighting.status != nil
+            let warm = now - root.start >= warmup
+            var busy = sighting.oneShot || sighting.status == true || (!precise && asserting.contains(root.pid))
+            var load = warm && !precise ? rate(root) : 0
             var stack = children[root.pid] ?? []
             while let pid = stack.popLast() {
                 guard let child = table[pid] else { continue }
                 let r = rate(child)
                 let isService = child.start - root.start < startupGrace
-                if r >= heavyThreshold || (!isService && now - child.start < toolWindow) { busy = true }
-                if !isService { load += r }
+                if warm && r >= heavyThreshold { busy = true }
+                if !precise {
+                    if asserting.contains(pid) { busy = true }
+                    // Model runtimes keep loaded runners alive; only their CPU counts.
+                    if warm && !isService && !sighting.agent.isModel && now - child.start < toolWindow { busy = true }
+                    if warm && !isService { load += r }
+                }
                 stack += children[pid] ?? []
             }
-            if busy || load >= cpuThreshold { lastActive[root.pid] = now }
-            if let last = lastActive[root.pid], now - last < quietAfter { working.insert(root.pid) }
+            if load >= cpuThreshold { busy = true }
+            if busy { lastActive[root.pid] = now }
+            if precise ? busy : lastActive[root.pid].map({ now - $0 < quietAfter }) ?? false {
+                working.insert(root.pid)
+            }
         }
 
         let alive = Set(sightings.map(\.pid))

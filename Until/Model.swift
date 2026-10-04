@@ -1,8 +1,14 @@
 import AppKit
 import IOKit
 import Observation
+import OSLog
 import ServiceManagement
 import UserNotifications
+
+private let log = Logger(subsystem: "com.marcovrinssen.until", category: "status")
+
+/// The real home folder; NSHomeDirectory() points into the container when sandboxed.
+let realHome = getpwuid(getuid()).map { String(cString: $0.pointee.pw_dir) } ?? NSHomeDirectory()
 
 /// One agent process as shown in the menu.
 struct AgentRun: Identifiable, Equatable {
@@ -13,13 +19,10 @@ struct AgentRun: Identifiable, Equatable {
     let host: String
     var working: Bool
 
-    /// The real home folder; NSHomeDirectory() points into the container when sandboxed.
-    private static let home = getpwuid(getuid()).map { String(cString: $0.pointee.pw_dir) } ?? NSHomeDirectory()
-
     var folder: String {
         switch directory {
         case "", "/": ""
-        case Self.home: "~"
+        case realHome: "~"
         default: (directory as NSString).lastPathComponent
         }
     }
@@ -79,10 +82,12 @@ final class Model {
     private var known: [pid_t: AgentRun] = [:]
 
     private(set) var loginItem = SMAppService.mainApp.status == .enabled
+    private(set) var claudeAccess = false
 
     var workingCount: Int { runs.filter { $0.working && !ignored.contains($0.id) }.count }
 
     init() {
+        openClaudeFolder()
         restoreAfterCrash()
         lidGuard.onExit = { [weak self] _ in
             // The guard died on its own; put lid sleep back and let the next tick retry.
@@ -151,14 +156,23 @@ final class Model {
         let now = Date()
         let table = ProcessTable.snapshot()
         let agents = Agent.all.filter { !disabledAgents.contains($0.id) } + customAgents.map(Agent.custom)
-        let sightings = Agent.find(in: table, agents: agents)
-        let working = tracker.update(table: table, sightings: sightings, now: now.timeIntervalSince1970)
+        var sightings = Agent.find(in: table, agents: agents)
+        for i in sightings.indices where sightings[i].agent.id == "claude" {
+            sightings[i].status = ClaudeSessions.status(pid: sightings[i].pid, started: table[sightings[i].pid]?.start ?? 0)
+        }
+        let asserting = Assertions.holders()
+        var working = tracker.update(table: table, sightings: sightings, asserting: asserting, now: now.timeIntervalSince1970)
+        let apps = Agent.appsWorking(agents: agents, asserting: asserting, table: table, counted: working)
+        working.formUnion(apps.map(\.pid))
+        sightings += apps
 
         var next: [pid_t: AgentRun] = [:]
         for s in sightings {
-            var run = known[s.pid] ?? AgentRun(
+            let started = Date(timeIntervalSince1970: table[s.pid]?.start ?? now.timeIntervalSince1970)
+            // Cached per process; a reused pid with a new start time is a new run.
+            var run = known[s.pid].flatMap { $0.started == started ? $0 : nil } ?? AgentRun(
                 id: s.pid, agent: s.agent,
-                started: Date(timeIntervalSince1970: table[s.pid]?.start ?? now.timeIntervalSince1970),
+                started: started,
                 directory: ProcessTable.workingDirectory(s.pid),
                 host: Agent.host(of: s.pid, in: table),
                 working: false)
@@ -193,6 +207,7 @@ final class Model {
         holding = hold && !assertions.failed
         if hold && lidMode { holdLid() } else { releaseLid() }
 
+        let previous = status
         status = !enabled ? .off
             : lowBattery && wanted ? .battery(battery.level ?? 0)
             : hot && wanted ? .hot
@@ -202,9 +217,50 @@ final class Model {
             : finishing ? .finishing(until: holdEnd ?? now)
             : .idle
 
+        if status != previous {
+            let names = runs.filter(\.working).map { "\($0.agent.name) \($0.id)" }.joined(separator: ", ")
+            log.notice("\(String(describing: self.status), privacy: .public), holding \(self.holding), lid \(self.lidHeld), working: \(names, privacy: .public)")
+        }
         notifyTransitions(count: enabled ? count : 0, lowBattery: lowBattery && wanted && enabled)
         onChange?()
     }
+
+    // MARK: Claude Code status
+
+    /// Claude Code's status files live in ~/.claude, outside the App Sandbox container.
+    private func openClaudeFolder() {
+        #if APPSTORE
+        guard let data = UserDefaults.standard.data(forKey: "claudeFolder") else { return }
+        var stale = false
+        guard let url = try? URL(resolvingBookmarkData: data, options: .withSecurityScope, relativeTo: nil, bookmarkDataIsStale: &stale),
+              url.startAccessingSecurityScopedResource() else { return }
+        if stale, let fresh = try? url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil) {
+            UserDefaults.standard.set(fresh, forKey: "claudeFolder")
+        }
+        ClaudeSessions.folder = url.lastPathComponent == ".claude" ? url : url.appendingPathComponent(".claude")
+        #else
+        ClaudeSessions.folder = URL(fileURLWithPath: realHome).appendingPathComponent(".claude")
+        #endif
+        claudeAccess = true
+    }
+
+    #if APPSTORE
+    func grantClaudeAccess() {
+        let panel = NSOpenPanel()
+        panel.message = "Choose the .claude folder in your home folder so Until can read whether Claude Code is busy."
+        panel.prompt = "Allow"
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.showsHiddenFiles = true
+        panel.directoryURL = URL(fileURLWithPath: realHome).appendingPathComponent(".claude")
+        NSApp.activate()
+        guard panel.runModal() == .OK, let url = panel.url,
+              let data = try? url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil) else { return }
+        UserDefaults.standard.set(data, forKey: "claudeFolder")
+        openClaudeFolder()
+        rescan()
+    }
+    #endif
 
     // MARK: Lid
 
@@ -278,7 +334,9 @@ final class Model {
     }
 
     private func notifyTransitions(count: Int, lowBattery: Bool) {
-        if wasWorking, count == 0 { post("Agents finished", "Your Mac can sleep now.") }
+        // Only when nobody is at the Mac; at the desk the count already says it.
+        let away = CGEventSource.secondsSinceLastEventType(.hidSystemState, eventType: CGEventType(rawValue: ~0)!) > 120
+        if wasWorking, count == 0, away { post("Agents finished", "Until will let your Mac sleep.") }
         wasWorking = count > 0
         if lowBattery, !notifiedBattery { post("Until paused", "Battery is at \(battery.level ?? 0) %. Your Mac can sleep now.") }
         notifiedBattery = lowBattery

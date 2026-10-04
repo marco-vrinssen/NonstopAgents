@@ -37,6 +37,36 @@ struct SettingsView: View {
     }
 }
 
+extension SettingsView {
+    /// Renders both panes in light and dark into PNGs from an off-screen window, for design review.
+    static func snapshot(model: Model, to directory: String) {
+        let draft = SettingsDraft()
+        let panes: [(String, AnyView)] = [
+            ("general", AnyView(GeneralPane(model: model, draft: draft))),
+            ("agents", AnyView(AgentsPane(model: model, draft: draft))),
+        ]
+        for (name, pane) in panes {
+            for (look, appearance) in [("light", NSAppearance.Name.aqua), ("dark", .darkAqua)] {
+                let size = NSRect(x: 0, y: 0, width: 480, height: 600)
+                let host = NSHostingView(rootView: pane.tint(.untilAccent).frame(width: 480, height: 600))
+                let window = NSWindow(contentRect: size, styleMask: [.borderless], backing: .buffered, defer: false)
+                window.setFrameOrigin(NSPoint(x: -20_000, y: -20_000))
+                window.appearance = NSAppearance(named: appearance)
+                window.contentView = host
+                window.orderFrontRegardless()
+                host.layoutSubtreeIfNeeded()
+                RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+                if let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) {
+                    host.cacheDisplay(in: host.bounds, to: rep)
+                    try? rep.representation(using: .png, properties: [:])?
+                        .write(to: URL(fileURLWithPath: "\(directory)/settings-\(name)-\(look).png"))
+                }
+                window.orderOut(nil)
+            }
+        }
+    }
+}
+
 private struct GeneralPane: View {
     @Bindable var model: Model
     @Bindable var draft: SettingsDraft
@@ -124,11 +154,33 @@ private struct AgentsPane: View {
     var body: some View {
         Form {
             Section {
-                ForEach(Agent.all.filter { !$0.isModel }) { toggle($0) }
+                ForEach(Agent.all.filter { !$0.isModel && !$0.binaries.isEmpty }) { toggle($0) }
             } header: {
                 Text("Agents")
             } footer: {
-                Note("An agent counts while it streams a reply or runs tools. One that waits for you, or an editor or terminal that is merely open, does not.")
+                Note("An agent counts while it streams a reply, runs tools or reports itself busy. One that waits for you, or an editor or terminal that is merely open, does not.")
+            }
+
+            #if APPSTORE
+            Section {
+                LabeledContent("Claude Code status") {
+                    if model.claudeAccess {
+                        Text("Allowed").foregroundStyle(.secondary)
+                    } else {
+                        Button("Allow access…") { model.grantClaudeAccess() }
+                    }
+                }
+            } footer: {
+                Note("Claude Code reports whether each session is busy or waiting for you in the .claude folder. Reading it keeps the count exact while a model thinks for minutes.")
+            }
+            #endif
+
+            Section {
+                ForEach(Agent.all.filter { $0.binaries.isEmpty && !$0.apps.isEmpty }) { toggle($0) }
+            } header: {
+                Text("Apps")
+            } footer: {
+                Note("Counted while the app keeps your Mac awake for its own agent. Claude and ChatGPT do so when their keep-awake setting is on.")
             }
 
             Section("Local models") {

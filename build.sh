@@ -14,13 +14,13 @@ FLAGS="-swift-version 5 -O -whole-module-optimization"
 checks() {
     mkdir -p build
     swiftc -swift-version 5 -Onone -target "arm64-apple-macos$TARGET" \
-        Until/Scanner.swift Until/Agents.swift Checks/main.swift -o build/checks
+        Until/Scanner.swift Until/Agents.swift Until/Power.swift Checks/main.swift -o build/checks
     shift
     build/checks "$@"
 }
 
 bundle() {
-    edition=$1 out=$2 entitlements=$3 defines=$4
+    edition=$1 out=$2 entitlements=$3 defines=$4 identifier=$5
     app="$out/Until.app"
     rm -rf "$app" "$out/obj"
     mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources" "$out/obj"
@@ -32,7 +32,7 @@ bundle() {
     done
     lipo -create "$out"/obj/Until-* -output "$app/Contents/MacOS/Until"
 
-    cp Config/Info.plist "$app/Contents/Info.plist"
+    sed "s/\$(PRODUCT_BUNDLE_IDENTIFIER)/$identifier/" Config/Info.plist > "$app/Contents/Info.plist"
     printf 'APPL????' > "$app/Contents/PkgInfo"
     iconset="$out/obj/AppIcon.iconset"
     mkdir -p "$iconset"
@@ -47,11 +47,11 @@ bundle() {
 
 case "${1:-}" in
     check) checks "$@" ;;
-    appstore) bundle "App Store" build/AppStore Config/UntilAppStore.entitlements "-D APPSTORE" ;;
+    appstore) bundle "App Store" build/AppStore Config/UntilAppStore.entitlements "-D APPSTORE" com.marcovrinssen.until ;;
     run)
-        bundle direct build Config/Until.entitlements ""
+        bundle direct build Config/Until.entitlements "" com.marcovrinssen.until.direct
         pkill -x Until 2>/dev/null || true
         open build/Until.app
         ;;
-    *) bundle direct build Config/Until.entitlements "" ;;
+    *) bundle direct build Config/Until.entitlements "" com.marcovrinssen.until.direct ;;
 esac

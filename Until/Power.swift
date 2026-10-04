@@ -29,6 +29,28 @@ final class Assertions {
     }
 }
 
+extension Assertions {
+    /// Processes that keep the Mac from sleeping themselves, apart from Until and media playback.
+    static func holders() -> Set<pid_t> {
+        var result: Unmanaged<CFDictionary>?
+        guard IOPMCopyAssertionsByProcess(&result) == kIOReturnSuccess,
+              let byProcess = result?.takeRetainedValue() as? [NSNumber: [[String: Any]]] else { return [] }
+        let sleepTypes: Set<String> = ["PreventUserIdleSystemSleep", "NoIdleSleepAssertion", "PreventSystemSleep"]
+        let media = ["Playing audio", "Playing video", "Media Playback", "WebRTC", "Video Wake Lock"]
+        let me = getpid()
+        var pids: Set<pid_t> = []
+        for (pid, list) in byProcess where pid.int32Value != me {
+            let holds = list.contains { a in
+                guard let type = a["AssertType"] as? String, sleepTypes.contains(type) else { return false }
+                let name = a["AssertName"] as? String ?? ""
+                return !media.contains { name.contains($0) }
+            }
+            if holds { pids.insert(pid.int32Value) }
+        }
+        return pids
+    }
+}
+
 struct Battery {
     /// Charge in percent, nil on Macs without a battery.
     var level: Int?

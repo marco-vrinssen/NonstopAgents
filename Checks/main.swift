@@ -16,16 +16,25 @@ func table(_ procs: [Proc]) -> [pid_t: Proc] {
 
 if CommandLine.arguments.contains("--live") {
     let tracker = Tracker()
+    ClaudeSessions.folder = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".claude")
     while true {
         let now = Date().timeIntervalSince1970
         let snapshot = ProcessTable.snapshot()
-        let sightings = Agent.find(in: snapshot, agents: Agent.all)
-        let working = tracker.update(table: snapshot, sightings: sightings, now: now)
+        var sightings = Agent.find(in: snapshot, agents: Agent.all)
+        for i in sightings.indices where sightings[i].agent.id == "claude" {
+            sightings[i].status = ClaudeSessions.status(pid: sightings[i].pid, started: snapshot[sightings[i].pid]?.start ?? 0)
+        }
+        let asserting = Assertions.holders()
+        var working = tracker.update(table: snapshot, sightings: sightings, asserting: asserting, now: now)
+        let apps = Agent.appsWorking(agents: Agent.all, asserting: asserting, table: snapshot, counted: working)
+        working.formUnion(apps.map(\.pid))
+        sightings += apps
         print("--", Date().formatted(date: .omitted, time: .standard), "\(working.count) working")
         for s in sightings.sorted(by: { $0.pid < $1.pid }) {
             let state = working.contains(s.pid) ? "working" : "quiet"
             let folder = (ProcessTable.workingDirectory(s.pid) as NSString).lastPathComponent
-            print("  \(s.pid) \(s.agent.name) [\(state)\(s.oneShot ? ", one-shot" : "")] \(folder) · \(Agent.host(of: s.pid, in: snapshot))")
+            let source = s.status.map { $0 ? ", reports busy" : ", reports idle" } ?? (s.oneShot ? ", one-shot" : "")
+            print("  \(s.pid) \(s.agent.name) [\(state)\(source)] \(folder) · \(Agent.host(of: s.pid, in: snapshot))")
         }
         Thread.sleep(forTimeInterval: 5)
     }
@@ -38,6 +47,8 @@ let args: [pid_t: [String]] = [
     30: ["claude", "-p", "fix the tests"],
     31: ["claude", "--output-format", "stream-json", "--input-format", "stream-json", "-p"],
     40: ["codex", "exec", "add a readme"],
+    41: ["codex", "app-server", "--listen", "unix:///tmp/codex.sock"],
+    60: ["ollama", "serve"],
 ]
 let apps = table([
     proc(10, 1, "/Applications/Claude.app/Contents/MacOS/Claude", start: 0),
@@ -47,7 +58,12 @@ let apps = table([
     proc(30, 1, "/opt/homebrew/bin/claude", start: 0),
     proc(31, 1, "/opt/homebrew/bin/claude", start: 0),
     proc(40, 1, "/opt/homebrew/bin/codex", start: 0),
+    proc(41, 1, "/opt/homebrew/bin/codex", start: 0),
+    proc(42, 1, "/opt/homebrew/lib/node_modules/@anthropic-ai/claude-code/bin/claude.exe", start: 0),
     proc(50, 1, "/usr/bin/ssh", start: 0),
+    proc(60, 1, "/Applications/Ollama.app/Contents/Resources/ollama", start: 0),
+    proc(61, 60, "/Applications/Ollama.app/Contents/Resources/llama-server", start: 0),
+    proc(70, 1, "/Applications/Cursor.app/Contents/MacOS/Cursor", start: 0),
 ])
 let found = Dictionary(uniqueKeysWithValues: Agent.find(in: apps, agents: Agent.all) { args[$0] ?? [] }.map { ($0.pid, $0) })
 assert(found[10] == nil, "the Claude desktop app itself is not an agent")
@@ -57,6 +73,16 @@ assert(found[30]?.oneShot == true, "claude -p is one-shot")
 assert(found[31]?.oneShot == false, "stream-json input keeps a session alive")
 assert(found[40]?.oneShot == true, "codex exec is one-shot")
 assert(found[50] == nil, "unrelated processes are ignored")
+assert(found[41] == nil, "the detached Codex daemon is a host, its terminal session counts")
+assert(found[42]?.agent.id == "claude", "npm installs run claude.exe")
+assert(found[60] == nil && found[61]?.agent.id == "llamacpp", "ollama serve hosts runners, which count by CPU")
+assert(found[70] == nil, "apps count only through their sleep assertion")
+
+// Apps: an assertion counts the app, unless an agent already counted runs inside it.
+assert(Agent.appsWorking(agents: Agent.all, asserting: [70], table: apps, counted: []).map(\.agent.id) == ["cursor-app"])
+let insideClaude = table([proc(80, 1, "/Applications/Claude.app/Contents/MacOS/Claude", start: 0),
+                          proc(81, 80, "/Users/me/Library/Application Support/Claude/claude-code/2.1.300/claude.app/Contents/MacOS/claude", start: 0)])
+assert(Agent.appsWorking(agents: Agent.all, asserting: [80], table: insideClaude, counted: [81]).isEmpty)
 
 // Activity: CPU per process tree, fresh tools, startup services, quiet timeout.
 let claude = Agent.all[0]
@@ -86,6 +112,37 @@ assert(run([(1000, [agentAt(1000, 0), mcp, sleep]), (1005, [agentAt(1005, 1), mc
 // A long, busy build counts at any age.
 let build = { (cpuMs: Double) in proc(103, 100, "/usr/bin/swift-frontend", start: 50, cpuMs: cpuMs) }
 assert(run([(2000, [agentAt(2000, 0), build(0)]), (2005, [agentAt(2005, 0), build(2500)])]) == [false, true])
+
+// A freshly started agent busy loading is not working yet.
+let fresh = { (cpuMs: Double) in proc(100, 1, "/x/claude", start: 3000, cpuMs: cpuMs) }
+assert(run([(3002, [fresh(0)]), (3007, [fresh(900)]), (3012, [fresh(1500)])]) == [false, false, false])
+
+// An agent's own status wins over its CPU, but a heavy background build still counts.
+func runStatus(_ status: Bool, _ steps: [(TimeInterval, [Proc])]) -> [Bool] {
+    let tracker = Tracker()
+    return steps.map { now, procs in
+        !tracker.update(table: table(procs), sightings: [Sighting(pid: 100, agent: claude, oneShot: false, status: status)], now: now).isEmpty
+    }
+}
+assert(runStatus(true, [(100, [agentAt(100, 0)]), (105, [agentAt(105, 0)])]) == [true, true], "busy while silent")
+assert(runStatus(false, [(100, [agentAt(100, 0)]), (105, [agentAt(105, 900)])]) == [false, false], "idle despite CPU blips")
+assert(runStatus(false, [(2000, [agentAt(2000, 0), build(0)]), (2005, [agentAt(2005, 0), build(2500)])]) == [false, true])
+
+// A caffeinate child or the agent's own assertion means it is mid-turn.
+let caffeinate = proc(104, 100, "/usr/bin/caffeinate", start: 50)
+let tracker = Tracker()
+assert(!tracker.update(table: table([agentAt(2000, 0), caffeinate]), sightings: [Sighting(pid: 100, agent: claude, oneShot: false)],
+                       asserting: [104], now: 2000).isEmpty)
+
+// Loaded model runners count only while they compute.
+let ollama = Agent.all.first { $0.id == "llamacpp" }!
+let runner = { (cpuMs: Double) in proc(110, 1, "/x/llama-server", start: 0, cpuMs: cpuMs) }
+let child = proc(111, 110, "/x/helper", start: 900)
+let modelTracker = Tracker()
+let modelRun = [(TimeInterval(1000), [runner(0), child]), (1005, [runner(1), child]), (1010, [runner(800), child])].map { now, procs in
+    !modelTracker.update(table: table(procs), sightings: [Sighting(pid: 110, agent: ollama, oneShot: false)], now: now).isEmpty
+}
+assert(modelRun == [false, false, true])
 
 // One-shot runs work for as long as they live.
 assert(run([(100, [agentAt(100, 0)])], oneShot: true) == [true])
