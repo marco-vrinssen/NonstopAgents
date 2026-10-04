@@ -15,7 +15,7 @@
 
 ## Menu bar
 
-The status item shows an SF Symbol at 15 pt, medium weight. The numbered circle symbols cut the digit out of the fill, and macOS tints them for light and dark menu bars and for the highlighted state.
+The status item shows an SF Symbol 15 pt tall (12 pt, semibold), the size of the system's own menu bar icons. The numbered circle symbols cut the digit out of the fill, and macOS tints them for light and dark menu bars and for the highlighted state. The symbol is redrawn as a plain template image, because symbols lay out on their text baseline and the status bar would crop the circle.
 
 | State | Symbol | Meaning |
 | --- | --- | --- |
@@ -41,7 +41,7 @@ A standard NSMenu, top to bottom:
 
 ## Settings
 
-A standard settings window: NSTabViewController with toolbar tabs and the preference toolbar style. The window title follows the selected tab, and the window takes each tab's height.
+A standard settings window: NSTabViewController with toolbar tabs and the preference toolbar style. The window title follows the selected tab, and the window takes each tab's height. It opens as the frontmost window: Until activates after its menu closes and orders the window above other apps.
 
 | Tab | Symbol | Contents |
 | --- | --- | --- |

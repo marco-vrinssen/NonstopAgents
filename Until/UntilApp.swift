@@ -66,8 +66,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard let button = item?.button else { return }
         let label = "Until: \(model.headline). \(model.detail)."
         let (symbol, dimmed) = statusSymbol()
-        button.image = NSImage(systemSymbolName: symbol, accessibilityDescription: label)?
-            .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 15, weight: .medium))
+        button.image = Self.menuBarImage(symbol, label: label)
         button.appearsDisabled = dimmed
         button.toolTip = label
         if menuOpen, shownMenu != menuSignature { build() }
@@ -87,6 +86,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case .failed: return ("exclamationmark.circle", false)
         case .off, .battery, .hot: return (count > 0 ? numbered(count, filled: false) : "circle", true)
         }
+    }
+
+    /// The SF Symbol at 15 pt, like the system's own menu bar icons. Symbols lay out on their
+    /// text baseline, which crops a circle in the status bar, so it is redrawn into a plain
+    /// template image whose bounds are the whole circle.
+    private static func menuBarImage(_ name: String, label: String) -> NSImage? {
+        guard let symbol = NSImage(systemSymbolName: name, accessibilityDescription: label)?
+            .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 12, weight: .semibold)) else { return nil }
+        let image = NSImage(size: symbol.size, flipped: false) { rect in
+            symbol.draw(in: rect)
+            return true
+        }
+        image.isTemplate = true
+        image.accessibilityDescription = label
+        return image
     }
 
     private var menuSignature: String {
@@ -207,8 +221,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func showAbout() {
-        NSApp.activate()
-        NSApp.orderFrontStandardAboutPanel(nil)
+        present {
+            NSApp.orderFrontStandardAboutPanel(nil)
+            return NSApp.windows.first { $0.isVisible && $0.level == .normal && $0 !== self.settings }
+        }
     }
 
     @objc private func openSettings() {
@@ -216,8 +232,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if CommandLine.arguments.contains("--settings-preview") {
             settings?.orderFrontRegardless()
         } else {
+            present { self.settings }
+        }
+    }
+
+    /// A menu bar app is not the active app while its menu is used, and macOS may decline to
+    /// activate it. Wait for the menu to close, activate, and order the window above all others.
+    private func present(_ window: @escaping () -> NSWindow?) {
+        DispatchQueue.main.async {
             NSApp.activate()
-            settings?.makeKeyAndOrderFront(nil)
+            guard let shown = window() else { return }
+            shown.makeKeyAndOrderFront(nil)
+            shown.orderFrontRegardless()
         }
     }
 }
