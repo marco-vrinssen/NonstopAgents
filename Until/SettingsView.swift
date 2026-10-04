@@ -1,19 +1,6 @@
 import AppKit
 import SwiftUI
 
-extension NSColor {
-    /// The one accent from DESIGN.md: lavender for working state and controls.
-    static let untilAccent = NSColor(name: "untilAccent") { appearance in
-        appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
-            ? NSColor(srgbRed: 0x82 / 255, green: 0x8F / 255, blue: 0xFF / 255, alpha: 1)
-            : NSColor(srgbRed: 0x5E / 255, green: 0x6A / 255, blue: 0xD2 / 255, alpha: 1)
-    }
-}
-
-extension Color {
-    static let untilAccent = Color(nsColor: .untilAccent)
-}
-
 /// Text typed into the settings window. A class rather than @State, whose macro
 /// plugin ships only with Xcode and not with the Command Line Tools.
 @MainActor
@@ -23,57 +10,44 @@ final class SettingsDraft {
     var helperMessage: String?
 }
 
-struct SettingsView: View {
-    @Bindable var model: Model
-    let draft = SettingsDraft()
-
-    var body: some View {
-        TabView {
-            GeneralPane(model: model, draft: draft).tabItem { Text("General") }
-            AgentsPane(model: model, draft: draft).tabItem { Text("Agents") }
-        }
-        .tint(.untilAccent)
-        .frame(width: 480, height: 600)
-    }
-}
-
-extension SettingsView {
-    /// Renders both panes in light and dark into PNGs from an off-screen window, for design review.
-    static func snapshot(model: Model, to directory: String) {
+/// The settings window: toolbar tabs, the native macOS settings layout, one grouped form per tab.
+/// The window takes each tab's height, so short tabs do not scroll.
+@MainActor
+enum SettingsWindow {
+    static func make(model: Model) -> NSWindow {
         let draft = SettingsDraft()
-        let panes: [(String, AnyView)] = [
-            ("general", AnyView(GeneralPane(model: model, draft: draft))),
-            ("agents", AnyView(AgentsPane(model: model, draft: draft))),
+        let panes: [(String, String, AnyView)] = [
+            ("General", "gearshape", AnyView(GeneralPane(model: model))),
+            ("Power", "bolt", AnyView(PowerPane(model: model, draft: draft))),
+            ("Agents", "sparkles", AnyView(AgentsPane(model: model, draft: draft))),
         ]
-        for (name, pane) in panes {
-            for (look, appearance) in [("light", NSAppearance.Name.aqua), ("dark", .darkAqua)] {
-                let size = NSRect(x: 0, y: 0, width: 480, height: 600)
-                let host = NSHostingView(rootView: pane.tint(.untilAccent).frame(width: 480, height: 600))
-                let window = NSWindow(contentRect: size, styleMask: [.borderless], backing: .buffered, defer: false)
-                window.setFrameOrigin(NSPoint(x: -20_000, y: -20_000))
-                window.appearance = NSAppearance(named: appearance)
-                window.contentView = host
-                window.orderFrontRegardless()
-                host.layoutSubtreeIfNeeded()
-                RunLoop.main.run(until: Date().addingTimeInterval(0.3))
-                if let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) {
-                    host.cacheDisplay(in: host.bounds, to: rep)
-                    try? rep.representation(using: .png, properties: [:])?
-                        .write(to: URL(fileURLWithPath: "\(directory)/settings-\(name)-\(look).png"))
-                }
-                window.orderOut(nil)
-            }
+        let tabs = NSTabViewController()
+        tabs.tabStyle = .toolbar
+        for (label, symbol, pane) in panes {
+            let host = NSHostingController(rootView: pane)
+            host.sizingOptions = .preferredContentSize
+            // The tab view controller shows the selected tab's title as the window title.
+            host.title = label
+            let item = NSTabViewItem(viewController: host)
+            item.label = label
+            item.image = NSImage(systemSymbolName: symbol, accessibilityDescription: label)
+            tabs.addTabViewItem(item)
         }
+        let window = NSWindow(contentViewController: tabs)
+        window.styleMask = [.titled, .closable]
+        window.toolbarStyle = .preference
+        window.isReleasedWhenClosed = false
+        window.center()
+        return window
     }
 }
 
 private struct GeneralPane: View {
     @Bindable var model: Model
-    @Bindable var draft: SettingsDraft
 
     var body: some View {
         Form {
-            Section {
+            Section("Until") {
                 Toggle("Keep the Mac awake while agents work", isOn: $model.enabled)
                 Toggle("Open at login", isOn: Binding(get: { model.loginItem }, set: model.setLoginItem))
                 Picker("Left click", selection: $model.leftClickShowsMenu) {
@@ -83,13 +57,33 @@ private struct GeneralPane: View {
             }
 
             Section {
+                Toggle("Send notifications", isOn: $model.notify)
+            } header: {
+                Text("Notifications")
+            } footer: {
+                Text("When agents finish while you are away from the Mac, and when Until pauses for battery.")
+            }
+        }
+        .pane()
+    }
+}
+
+private struct PowerPane: View {
+    @Bindable var model: Model
+    @Bindable var draft: SettingsDraft
+
+    var body: some View {
+        Form {
+            Section {
                 Picker("After agents finish", selection: $model.holdMinutes) {
                     Text("Sleep right away").tag(0)
                     ForEach([1, 2, 5, 10], id: \.self) { Text("Stay awake \($0) min").tag($0) }
                 }
                 Toggle("Keep the display on", isOn: $model.keepDisplayOn)
+            } header: {
+                Text("Staying awake")
             } footer: {
-                Note("An agent counts as finished after a minute without activity. The extra time covers long pauses while a model thinks.")
+                Text("An agent counts as finished after a minute without activity. The extra time covers long pauses while a model thinks.")
             }
 
             Section {
@@ -111,9 +105,9 @@ private struct GeneralPane: View {
                 Text("Lid closed")
             } footer: {
                 #if APPSTORE
-                Note("Until disables lid sleep only while it keeps the Mac awake and hands it back when agents finish. Plugging the charger in or out with the lid closed can still put some Macs to sleep.")
+                Text("Until disables lid sleep only while it keeps the Mac awake and hands it back when agents finish. Plugging the charger in or out with the lid closed can still put some Macs to sleep.")
                 #else
-                Note("Until disables lid sleep only while it keeps the Mac awake and hands it back when agents finish. The sleep helper also covers plugging the charger in or out with the lid closed.")
+                Text("Until disables lid sleep only while it keeps the Mac awake and hands it back when agents finish. The sleep helper also covers plugging the charger in or out with the lid closed.")
                 #endif
             }
 
@@ -130,20 +124,15 @@ private struct GeneralPane: View {
             } header: {
                 Text("Battery")
             } footer: {
-                Note(model.battery.level.map { "Now at \($0)%. At or below the limit Until lets the Mac sleep, also with the lid closed. At 100% it never keeps the Mac awake on battery." }
+                Text(model.battery.level.map { "Now at \($0)%. At or below the limit Until lets the Mac sleep, also with the lid closed. At 100% it never keeps the Mac awake on battery." }
                      ?? "This Mac has no battery.")
             }
 
-            Section {
+            Section("Heat") {
                 Toggle("Let the Mac sleep when it gets hot", isOn: $model.thermalGuard)
-                Toggle("Notify me when agents finish", isOn: $model.notify)
-            } header: {
-                Text("Safety")
-            } footer: {
-                Note("Until \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "")")
             }
         }
-        .formStyle(.grouped)
+        .pane()
     }
 }
 
@@ -158,20 +147,22 @@ private struct AgentsPane: View {
             } header: {
                 Text("Agents")
             } footer: {
-                Note("An agent counts while it streams a reply, runs tools or reports itself busy. One that waits for you, or an editor or terminal that is merely open, does not.")
+                Text("An agent counts while it streams a reply, runs tools or reports itself busy. One that waits for you, or an editor or terminal that is merely open, does not.")
             }
 
             #if APPSTORE
             Section {
-                LabeledContent("Claude Code status") {
+                LabeledContent("Status files") {
                     if model.claudeAccess {
                         Text("Allowed").foregroundStyle(.secondary)
                     } else {
                         Button("Allow access…") { model.grantClaudeAccess() }
                     }
                 }
+            } header: {
+                Text("Claude Code")
             } footer: {
-                Note("Claude Code reports whether each session is busy or waiting for you in the .claude folder. Reading it keeps the count exact while a model thinks for minutes.")
+                Text("Claude Code reports whether each session is busy or waiting for you in the .claude folder. Reading it keeps the count exact while a model thinks for minutes.")
             }
             #endif
 
@@ -180,7 +171,7 @@ private struct AgentsPane: View {
             } header: {
                 Text("Apps")
             } footer: {
-                Note("Cursor and VS Code count while their built-in agent runs. Claude counts while it runs a turn sent to it remotely. Their agents on the command line are listed above.")
+                Text("Cursor and VS Code count while their built-in agent runs. Claude counts while it runs a turn sent to it remotely. Their agents on the command line are listed above.")
             }
 
             Section("Local models") {
@@ -202,10 +193,10 @@ private struct AgentsPane: View {
             } header: {
                 Text("Other processes")
             } footer: {
-                Note("Add any command line tool by its process name. It counts while it works, like the agents above.")
+                Text("Add any command line tool by its process name. It counts while it works, like the agents above.")
             }
         }
-        .formStyle(.grouped)
+        .pane(height: 560)
     }
 
     private func toggle(_ agent: Agent) -> some View {
@@ -224,15 +215,12 @@ private struct AgentsPane: View {
     }
 }
 
-/// Secondary text under a settings section.
-private struct Note: View {
-    let text: String
-    init(_ text: String) { self.text = text }
-
-    var body: some View {
-        Text(text)
-            .font(.system(size: 11))
-            .foregroundStyle(.secondary)
-            .frame(maxWidth: .infinity, alignment: .leading)
+extension View {
+    /// One settings tab: a grouped form at a fixed width. Without a height it takes its content's
+    /// height, so the window fits the tab; long tabs pass a height and scroll.
+    func pane(height: CGFloat? = nil) -> some View {
+        formStyle(.grouped)
+            .frame(width: 500, height: height)
+            .fixedSize(horizontal: false, vertical: height == nil)
     }
 }

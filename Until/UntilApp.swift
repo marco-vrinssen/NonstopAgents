@@ -1,5 +1,4 @@
 import AppKit
-import SwiftUI
 
 @main
 @MainActor
@@ -18,7 +17,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let menu = NSMenu()
     private var settings: NSWindow?
     private var menuOpen = false
-    private var shownRuns: [AgentRun] = []
+    private var shownMenu = ""
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         model = Model()
@@ -32,9 +31,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         refresh()
         // Launch flags for screenshots and manual testing.
         if CommandLine.arguments.contains("--settings") { openSettings() }
-        if let i = CommandLine.arguments.firstIndex(of: "--snapshot"), i + 1 < CommandLine.arguments.count {
-            SettingsView.snapshot(model: model, to: CommandLine.arguments[i + 1])
-            NSApp.terminate(nil)
+        // Opens a settings tab off-screen without taking focus and prints the window number for screencapture -l.
+        if let i = CommandLine.arguments.firstIndex(of: "--settings-preview") {
+            openSettings()
+            let tab = CommandLine.arguments.dropFirst(i + 1).first.flatMap(Int.init) ?? 0
+            (settings?.contentViewController as? NSTabViewController)?.selectedTabViewItemIndex = tab
+            settings?.setFrameOrigin(NSPoint(x: -20_000, y: -20_000))
+            print(settings?.windowNumber ?? 0)
+            fflush(stdout)
         }
         if CommandLine.arguments.contains("--menu") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) { self.showMenu() }
@@ -60,17 +64,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func refresh() {
         guard let button = item?.button else { return }
+        let label = "Until: \(model.headline). \(model.detail)."
+        let (symbol, dimmed) = statusSymbol()
+        button.image = NSImage(systemSymbolName: symbol, accessibilityDescription: label)?
+            .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 15, weight: .medium))
+        button.appearsDisabled = dimmed
+        button.toolTip = label
+        if menuOpen, shownMenu != menuSignature { build() }
+    }
+
+    /// The dot is an SF Symbol: the numbered circles cut the count out of the fill, and the
+    /// system tints them for light and dark menu bars. Filled means the Mac is kept awake.
+    private func statusSymbol() -> (name: String, dimmed: Bool) {
+        func numbered(_ n: Int, filled: Bool) -> String {
+            (n > 50 ? "ellipsis" : "\(n)") + (filled ? ".circle.fill" : ".circle")
+        }
         let count = model.workingCount
         switch model.status {
-        case .working(let n): button.image = StatusDot.image(count: n, filled: true, dimmed: false)
-        case .finishing, .manual: button.image = StatusDot.image(count: nil, filled: true, dimmed: false)
-        case .idle, .failed: button.image = StatusDot.image(count: nil, filled: false, dimmed: false)
-        case .off, .battery, .hot: button.image = StatusDot.image(count: count > 0 ? count : nil, filled: false, dimmed: true)
+        case .working(let n): return (numbered(n, filled: true), false)
+        case .finishing, .manual: return ("circle.fill", false)
+        case .idle: return ("circle", false)
+        case .failed: return ("exclamationmark.circle", false)
+        case .off, .battery, .hot: return (count > 0 ? numbered(count, filled: false) : "circle", true)
         }
-        let label = "Until: \(model.headline). \(model.detail)."
-        button.toolTip = label
-        button.setAccessibilityLabel(label)
-        if menuOpen, shownRuns != model.runs { build() } else if menuOpen { header?.rootView = HeaderView(model: model) }
+    }
+
+    private var menuSignature: String {
+        model.headline + model.detail + model.runs.map { "\($0.id)\($0.working)\(model.ignored.contains($0.id))" }.joined()
+            + "\(model.manualUntil != nil)\(model.lidMode)\(model.enabled)"
     }
 
     // MARK: Menu
@@ -84,18 +105,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menuOpen = false
     }
 
-    private var header: NSHostingView<HeaderView>?
-
     private func build() {
         menu.removeAllItems()
-        shownRuns = model.runs
+        shownMenu = menuSignature
 
-        let top = NSMenuItem()
-        let view = NSHostingView(rootView: HeaderView(model: model))
-        view.frame.size = view.fittingSize
-        top.view = view
-        header = view
-        menu.addItem(top)
+        let status = NSMenuItem(title: model.headline, action: nil, keyEquivalent: "")
+        status.subtitle = model.detail
+        status.isEnabled = false
+        menu.addItem(status)
         menu.addItem(.separator())
 
         if model.runs.isEmpty {
@@ -131,6 +148,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let power = action(model.enabled ? "Turn Until off" : "Turn Until on", #selector(togglePower))
         power.subtitle = model.leftClickShowsMenu ? "Or right-click the dot" : "Or click the dot"
         menu.addItem(power)
+        menu.addItem(.separator())
+        menu.addItem(action("About Until", #selector(showAbout)))
         menu.addItem(action("Settings…", #selector(openSettings), key: ","))
         menu.addItem(action("Quit Until", #selector(NSApplication.terminate(_:)), key: "q", target: NSApp))
     }
@@ -138,8 +157,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func agentItem(_ run: AgentRun) -> NSMenuItem {
         let ignored = model.ignored.contains(run.id)
         let entry = NSMenuItem(title: run.agent.name, action: nil, keyEquivalent: "")
-        entry.image = AgentDot.image(working: run.working && !ignored)
-        // macOS 27 hides menu item images unless asked; the dot carries the agent's state.
+        // A filled circle in the system accent color marks a working agent.
+        let working = run.working && !ignored
+        entry.image = NSImage(systemSymbolName: working ? "circle.fill" : "circle", accessibilityDescription: nil)?
+            .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 9, weight: .regular)
+                .applying(NSImage.SymbolConfiguration(paletteColors: [working ? .controlAccentColor : .secondaryLabelColor])))
+        // macOS 27 hides menu item images unless asked; this one carries the agent's state.
         if #available(macOS 27, *) { entry.preferredImageVisibility = .visible }
         let state = ignored ? "ignored" : run.working ? "working" : "quiet"
         entry.subtitle = [run.folder, run.host, state].filter { !$0.isEmpty }.joined(separator: " · ")
@@ -183,37 +206,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
     }
 
-    @objc private func openSettings() {
-        if settings == nil {
-            let window = NSWindow(contentViewController: NSHostingController(rootView: SettingsView(model: model)))
-            window.title = "Until Settings"
-            window.styleMask = [.titled, .closable]
-            window.isReleasedWhenClosed = false
-            window.center()
-            settings = window
-        }
+    @objc private func showAbout() {
         NSApp.activate()
-        settings?.makeKeyAndOrderFront(nil)
+        NSApp.orderFrontStandardAboutPanel(nil)
     }
-}
 
-/// The working or quiet marker in front of each agent in the menu.
-enum AgentDot {
-    static func image(working: Bool) -> NSImage {
-        let size: CGFloat = 8
-        let image = NSImage(size: NSSize(width: size, height: size), flipped: false) { rect in
-            if working {
-                NSColor.untilAccent.setFill()
-                NSBezierPath(ovalIn: rect).fill()
-            } else {
-                NSColor.tertiaryLabelColor.setStroke()
-                let ring = NSBezierPath(ovalIn: rect.insetBy(dx: 0.75, dy: 0.75))
-                ring.lineWidth = 1.5
-                ring.stroke()
-            }
-            return true
+    @objc private func openSettings() {
+        if settings == nil { settings = SettingsWindow.make(model: model) }
+        if CommandLine.arguments.contains("--settings-preview") {
+            settings?.orderFrontRegardless()
+        } else {
+            NSApp.activate()
+            settings?.makeKeyAndOrderFront(nil)
         }
-        return image
     }
 }
 
@@ -248,23 +253,5 @@ extension Model {
         let seconds = max(0, Int(date.timeIntervalSinceNow.rounded()))
         return seconds >= 3600 ? "\(seconds / 3600) h \(seconds % 3600 / 60) min"
             : seconds >= 60 ? "\(seconds / 60) min" : "\(seconds) s"
-    }
-}
-
-/// Status at the top of the menu.
-struct HeaderView: View {
-    let model: Model
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(model.headline)
-                .font(.system(size: 13, weight: .semibold))
-            Text(model.detail)
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-        }
-        .frame(width: 260, alignment: .leading)
-        .padding(.horizontal, 15)
-        .padding(.vertical, 6)
     }
 }
