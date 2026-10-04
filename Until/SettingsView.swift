@@ -112,19 +112,14 @@ private struct PowerPane: View {
             }
 
             Section {
-                LabeledContent("On battery, stop at") {
-                    HStack {
-                        Slider(value: Binding(get: { Double(model.batteryFloor) }, set: { model.batteryFloor = Int($0) }),
-                               in: 5...100, step: 5)
-                        Text("\(model.batteryFloor)%")
-                            .monospacedDigit()
-                            .frame(width: 36, alignment: .trailing)
-                    }
+                Picker("On battery, stop at", selection: $model.batteryFloor) {
+                    ForEach(Array(stride(from: 5, through: 50, by: 5)), id: \.self) { Text("\($0)%").tag($0) }
+                    Text("Never stay awake on battery").tag(100)
                 }
             } header: {
                 Text("Battery")
             } footer: {
-                Text(model.battery.level.map { "Now at \($0)%. At or below the limit Until lets the Mac sleep, also with the lid closed. At 100% it never keeps the Mac awake on battery." }
+                Text(model.battery.level.map { "Now at \($0)%. At or below the limit Until lets the Mac sleep, also with the lid closed." }
                      ?? "This Mac has no battery.")
             }
 

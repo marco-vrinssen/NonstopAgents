@@ -29,20 +29,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.autoenablesItems = false
         model.onChange = { [weak self] in self?.refresh() }
         refresh()
-        // Launch flags for screenshots and manual testing.
-        if CommandLine.arguments.contains("--settings") { openSettings() }
-        // Opens a settings tab off-screen without taking focus and prints the window number for screencapture -l.
-        if let i = CommandLine.arguments.firstIndex(of: "--settings-preview") {
-            openSettings()
-            let tab = CommandLine.arguments.dropFirst(i + 1).first.flatMap(Int.init) ?? 0
-            (settings?.contentViewController as? NSTabViewController)?.selectedTabViewItemIndex = tab
-            settings?.setFrameOrigin(NSPoint(x: -20_000, y: -20_000))
-            print(settings?.windowNumber ?? 0)
-            fflush(stdout)
-        }
-        if CommandLine.arguments.contains("--menu") {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { self.showMenu() }
-        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -66,7 +52,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard let button = item?.button else { return }
         let label = "Until: \(model.headline). \(model.detail)."
         let (symbol, dimmed) = statusSymbol()
-        button.image = Self.menuBarImage(symbol, label: label)
+        button.image = NSImage(systemSymbolName: symbol, accessibilityDescription: label)
         button.appearsDisabled = dimmed
         button.toolTip = label
         if menuOpen, shownMenu != menuSignature { build() }
@@ -86,21 +72,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case .failed: return ("exclamationmark.circle", false)
         case .off, .battery, .hot: return (count > 0 ? numbered(count, filled: false) : "circle", true)
         }
-    }
-
-    /// The SF Symbol at 15 pt, like the system's own menu bar icons. Symbols lay out on their
-    /// text baseline, which crops a circle in the status bar, so it is redrawn into a plain
-    /// template image whose bounds are the whole circle.
-    private static func menuBarImage(_ name: String, label: String) -> NSImage? {
-        guard let symbol = NSImage(systemSymbolName: name, accessibilityDescription: label)?
-            .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 12, weight: .semibold)) else { return nil }
-        let image = NSImage(size: symbol.size, flipped: false) { rect in
-            symbol.draw(in: rect)
-            return true
-        }
-        image.isTemplate = true
-        image.accessibilityDescription = label
-        return image
     }
 
     private var menuSignature: String {
@@ -171,13 +142,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func agentItem(_ run: AgentRun) -> NSMenuItem {
         let ignored = model.ignored.contains(run.id)
         let entry = NSMenuItem(title: run.agent.name, action: nil, keyEquivalent: "")
-        // A filled circle in the system accent color marks a working agent.
-        let working = run.working && !ignored
-        entry.image = NSImage(systemSymbolName: working ? "circle.fill" : "circle", accessibilityDescription: nil)?
-            .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 9, weight: .regular)
-                .applying(NSImage.SymbolConfiguration(paletteColors: [working ? .controlAccentColor : .secondaryLabelColor])))
-        // macOS 27 hides menu item images unless asked; this one carries the agent's state.
-        if #available(macOS 27, *) { entry.preferredImageVisibility = .visible }
         let state = ignored ? "ignored" : run.working ? "working" : "quiet"
         entry.subtitle = [run.folder, run.host, state].filter { !$0.isEmpty }.joined(separator: " · ")
 
@@ -229,15 +193,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func openSettings() {
         if settings == nil { settings = SettingsWindow.make(model: model) }
-        if CommandLine.arguments.contains("--settings-preview") {
-            settings?.orderFrontRegardless()
-        } else {
-            present { self.settings }
-        }
+        present { self.settings }
     }
 
     /// A menu bar app is not the active app while its menu is used, and macOS may decline to
-    /// activate it. Wait for the menu to close, activate, and order the window above all others.
+    /// activate it. Wait for the menu to close, ask to activate, and order the window to the front
+    /// even when macOS keeps the focus elsewhere; one click then focuses it.
     private func present(_ window: @escaping () -> NSWindow?) {
         DispatchQueue.main.async {
             NSApp.activate()

@@ -15,7 +15,7 @@
 
 ## Menu bar
 
-The status item shows an SF Symbol 15 pt tall (12 pt, semibold), the size of the system's own menu bar icons. The numbered circle symbols cut the digit out of the fill, and macOS tints them for light and dark menu bars and for the highlighted state. The symbol is redrawn as a plain template image, because symbols lay out on their text baseline and the status bar would crop the circle.
+The status item shows the SF Symbol exactly as macOS provides it, with no size, weight or color configuration, so the menu bar sizes and tints it like its own icons. The numbered circle symbols cut the digit out of the fill. A size configuration makes the status bar crop the circle, so there is none.
 
 | State | Symbol | Meaning |
 | --- | --- | --- |
@@ -34,14 +34,14 @@ The status item shows an SF Symbol 15 pt tall (12 pt, semibold), the size of the
 A standard NSMenu, top to bottom:
 
 1. Status: a disabled item with the headline as title and the detail as subtitle.
-2. Agents: a section header, then one item per agent process. Title is the tool, subtitle is folder, host app and state. The image is `circle.fill` in the system accent color when working, `circle` in secondary label color when quiet. Each agent has a submenu to stop keeping awake for it, show its folder and see its process.
+2. Agents: a section header, then one item per agent process, working ones first. Title is the tool, subtitle is folder, host app and working or quiet. No item images: macOS 27 hides them by default. Each agent has a submenu to stop keeping awake for it, show its folder and see its process.
 3. Actions: "Keep awake for" with durations, "Stay awake with lid closed" as a checkmark item.
 4. Control: "Turn Until off" with the subtitle "Or click the dot".
 5. App: "About Until" (the standard about panel), "Settings…" with Command-comma, "Quit Until" with Command-Q.
 
 ## Settings
 
-A standard settings window: NSTabViewController with toolbar tabs and the preference toolbar style. The window title follows the selected tab, and the window takes each tab's height with the tab view controller's stock behavior. It opens as the frontmost window: Until activates after its menu closes and orders the window above other apps.
+A standard settings window: NSTabViewController with toolbar tabs and the preference toolbar style. The window title follows the selected tab, and the window takes each tab's height with the tab view controller's stock behavior. Until asks to activate after its menu closes and orders the window to the front. Whether it also takes keyboard focus is macOS's decision; otherwise one click focuses it.
 
 | Tab | Symbol | Contents |
 | --- | --- | --- |
@@ -51,7 +51,7 @@ A standard settings window: NSTabViewController with toolbar tabs and the prefer
 
 - Each tab is one SwiftUI grouped Form. Every section has a header, which also sets the space between sections.
 - Section footers are plain text, so the form styles them as secondary notes.
-- Controls are system toggles, pickers, sliders, buttons and text fields in the user's accent color.
+- Controls are system toggles, pickers, buttons and text fields, unstyled, in the user's accent color.
 
 ## App icon
 
