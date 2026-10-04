@@ -41,7 +41,7 @@ A standard NSMenu, top to bottom:
 
 ## Settings
 
-A standard settings window: NSTabViewController with toolbar tabs and the preference toolbar style. The window title follows the selected tab. Switching tabs crossfades the content and animates the window to the tab's height, as in the settings of Apple's own apps; the tab view controller alone would resize without animation. It opens as the frontmost window: Until activates after its menu closes and orders the window above other apps.
+A standard settings window: NSTabViewController with toolbar tabs and the preference toolbar style. The window title follows the selected tab, and the window takes each tab's height with the tab view controller's stock behavior. It opens as the frontmost window: Until activates after its menu closes and orders the window above other apps.
 
 | Tab | Symbol | Contents |
 | --- | --- | --- |
