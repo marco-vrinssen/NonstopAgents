@@ -50,15 +50,17 @@ Until scans the process table every 5 seconds and keeps the agents it recognises
 4. Its process tree uses CPU: above 2 % of a core while it streams or runs tools. Idle agents measured 0.1 to 0.8 %.
 5. It runs a tool process started in the last 10 minutes, so a silent `sleep` or network wait counts. Services started with the agent, such as MCP servers, do not.
 
-An agent stays working for a minute after its last signal. After the last agent finishes, Until keeps the Mac awake for the time set in Settings, 2 minutes by default, then releases. Apps with built-in agents count while the app holds its own sleep assertion: Cursor and VS Code do this while their agent runs.
+An agent stays working for a minute after its last signal. After the last agent finishes, Until keeps the Mac awake for the time set in Settings, 2 minutes by default, then releases.
+
+Apps with built-in agents count while the app holds a sleep assertion for its agent: Cursor and VS Code while their agent runs, Claude while it runs a remote turn. Assertions that only mean "keep awake" are ignored, such as Claude's own keep-awake setting.
 
 An editor, terminal or agent that is merely open never counts.
 
 ## Supported tools
 
 - Command line agents: Claude Code, Codex, Copilot CLI, Cursor Agent, Gemini CLI, Antigravity CLI, OpenCode, Devin, Amp, Droid, Qwen Code, Grok Build, Kiro CLI, Junie, Warp Agent, Goose, Crush, Cline, Kilo Code, Auggie, Continue, Aider, OpenHands, Mistral Vibe, Plandex.
-- The same agents inside editors and apps: VS Code, Cursor, Zed, JetBrains, Xcode, Warp, Conductor, the Claude and ChatGPT apps.
-- Apps with built-in agents: Cursor, VS Code, and Claude and ChatGPT when their keep-awake setting is on.
+- The same agents inside editors and apps: VS Code, Cursor, Zed, JetBrains, Xcode, Warp, Conductor, the Claude Code tab and the ChatGPT app's local tasks.
+- Apps with built-in agents: Cursor, VS Code, and Claude for remote turns.
 - Local models: Ollama, llama.cpp, LM Studio, MLX.
 - Any other tool by process name, added in Settings.
 

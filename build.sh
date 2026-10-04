@@ -34,6 +34,7 @@ bundle() {
 
     sed "s/\$(PRODUCT_BUNDLE_IDENTIFIER)/$identifier/" Config/Info.plist > "$app/Contents/Info.plist"
     printf 'APPL????' > "$app/Contents/PkgInfo"
+    cp Until/PrivacyInfo.xcprivacy "$app/Contents/Resources/"
     iconset="$out/obj/AppIcon.iconset"
     mkdir -p "$iconset"
     cp Until/Assets.xcassets/AppIcon.appiconset/icon_*.png "$iconset/"

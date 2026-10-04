@@ -15,6 +15,8 @@ struct Agent: Hashable, Identifiable {
     var hosts: Set<String> = []
     /// App bundles whose own sleep assertion means their built-in agent is working.
     var apps: [String] = []
+    /// Assertion name prefixes that mark a running turn. Empty means any assertion counts.
+    var turnAssertions: [String] = []
     /// Local model runtimes rather than agents.
     var isModel = false
 }
@@ -59,11 +61,12 @@ extension Agent {
         Agent(id: "vibe", name: "Mistral Vibe", binaries: ["vibe", "vibe-acp"], patterns: ["mistral-vibe", "Vibe CLI"]),
         Agent(id: "plandex", name: "Plandex", binaries: ["plandex", "pdx"]),
 
-        // Agents built into apps. These apps hold a sleep assertion while their agent runs.
+        // Agents built into apps, seen through the sleep assertion the app holds while its agent runs.
+        // Claude's general keep-awake setting holds one permanently, so only its per-turn one counts.
+        // The ChatGPT app's local tasks run in its codex process, matched above.
         Agent(id: "cursor-app", name: "Cursor", apps: ["Cursor.app"]),
         Agent(id: "vscode", name: "VS Code agent", apps: ["Visual Studio Code.app", "Visual Studio Code - Insiders.app"]),
-        Agent(id: "claude-app", name: "Claude", apps: ["Claude.app"]),
-        Agent(id: "chatgpt-app", name: "ChatGPT", apps: ["ChatGPT.app", "Codex.app"]),
+        Agent(id: "claude-app", name: "Claude", apps: ["Claude.app"], turnAssertions: ["bridge_turn"]),
 
         Agent(id: "ollama", name: "Ollama", binaries: ["ollama"], hosts: ["serve"], isModel: true),
         Agent(id: "llamacpp", name: "llama.cpp", binaries: ["llama-server", "llama-cli", "llama"], isModel: true),
@@ -89,6 +92,11 @@ extension Agent {
     /// Finds agent processes of the current user. Wrappers of the same agent
     /// (npx, version launchers, a CLI relaunching itself) count once, at the outermost process.
     static func find(in table: [pid_t: Proc], agents: [Agent], arguments: (pid_t) -> [String] = ProcessTable.arguments) -> [Sighting] {
+        // A name index and a plain C substring prefilter keep a scan of ~1000 processes at a few ms.
+        var byBinary: [String: Agent] = [:]
+        for agent in agents.reversed() { for binary in agent.binaries { byBinary[binary] = agent } }
+        let patterns = agents.flatMap(\.patterns).map { Array($0.utf8CString) }
+
         var found: [pid_t: Sighting] = [:]
         for p in table.values where !p.path.isEmpty {
             let name = (p.path as NSString).lastPathComponent
@@ -100,10 +108,14 @@ extension Agent {
                     keys.append((script as NSString).lastPathComponent)
                 }
             }
-            let haystack = ([p.path] + (args ?? [])).joined(separator: " ")
-            guard let agent = agents.first(where: { a in
-                keys.contains(where: a.binaries.contains) || a.patterns.contains(where: haystack.contains)
-            }) else { continue }
+            var match = keys.lazy.compactMap { byBinary[$0] }.first
+            if match == nil {
+                let haystack = ([p.path] + (args ?? [])).joined(separator: " ")
+                if haystack.withCString({ h in patterns.contains { strstr(h, $0) != nil } }) {
+                    match = agents.first { $0.patterns.contains(where: haystack.contains) }
+                }
+            }
+            guard let agent = match else { continue }
 
             var oneShot = false
             if !agent.oneShot.isEmpty || !agent.hosts.isEmpty {
@@ -130,7 +142,7 @@ extension Agent {
 
     /// Apps whose built-in agent is working: the app process itself holds a sleep assertion.
     /// Skipped when an agent process already counted runs inside the app, so one task counts once.
-    static func appsWorking(agents: [Agent], asserting: Set<pid_t>, table: [pid_t: Proc], counted: Set<pid_t>) -> [Sighting] {
+    static func appsWorking(agents: [Agent], holders: [pid_t: [String]], table: [pid_t: Proc], counted: Set<pid_t>) -> [Sighting] {
         let insideApp = { (app: pid_t) in
             counted.contains { pid in
                 var current = table[pid]?.ppid ?? 0
@@ -141,9 +153,10 @@ extension Agent {
                 return false
             }
         }
-        return asserting.compactMap { pid in
+        return holders.compactMap { pid, names in
             guard let path = table[pid]?.path,
                   let agent = agents.first(where: { $0.apps.contains { path.contains("/" + $0 + "/") } }),
+                  agent.turnAssertions.isEmpty || names.contains(where: { name in agent.turnAssertions.contains { name.hasPrefix($0) } }),
                   !insideApp(pid) else { return nil }
             return Sighting(pid: pid, agent: agent, oneShot: true)
         }

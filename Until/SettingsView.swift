@@ -121,7 +121,7 @@ private struct GeneralPane: View {
                 LabeledContent("On battery, stop at") {
                     HStack {
                         Slider(value: Binding(get: { Double(model.batteryFloor) }, set: { model.batteryFloor = Int($0) }),
-                               in: 5...50, step: 5)
+                               in: 5...100, step: 5)
                         Text("\(model.batteryFloor)%")
                             .monospacedDigit()
                             .frame(width: 36, alignment: .trailing)
@@ -130,7 +130,7 @@ private struct GeneralPane: View {
             } header: {
                 Text("Battery")
             } footer: {
-                Note(model.battery.level.map { "Now at \($0)%. Below the limit Until lets the Mac sleep, also with the lid closed." }
+                Note(model.battery.level.map { "Now at \($0)%. At or below the limit Until lets the Mac sleep, also with the lid closed. At 100% it never keeps the Mac awake on battery." }
                      ?? "This Mac has no battery.")
             }
 
@@ -180,7 +180,7 @@ private struct AgentsPane: View {
             } header: {
                 Text("Apps")
             } footer: {
-                Note("Counted while the app keeps your Mac awake for its own agent. Claude and ChatGPT do so when their keep-awake setting is on.")
+                Note("Cursor and VS Code count while their built-in agent runs. Claude counts while it runs a turn sent to it remotely. Their agents on the command line are listed above.")
             }
 
             Section("Local models") {

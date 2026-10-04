@@ -30,24 +30,25 @@ final class Assertions {
 }
 
 extension Assertions {
-    /// Processes that keep the Mac from sleeping themselves, apart from Until and media playback.
-    static func holders() -> Set<pid_t> {
+    /// Processes that keep the Mac from sleeping themselves, with their assertion names.
+    /// Until's own assertions and media playback are left out.
+    static func holders() -> [pid_t: [String]] {
         var result: Unmanaged<CFDictionary>?
         guard IOPMCopyAssertionsByProcess(&result) == kIOReturnSuccess,
-              let byProcess = result?.takeRetainedValue() as? [NSNumber: [[String: Any]]] else { return [] }
+              let byProcess = result?.takeRetainedValue() as? [NSNumber: [[String: Any]]] else { return [:] }
         let sleepTypes: Set<String> = ["PreventUserIdleSystemSleep", "NoIdleSleepAssertion", "PreventSystemSleep"]
         let media = ["Playing audio", "Playing video", "Media Playback", "WebRTC", "Video Wake Lock"]
         let me = getpid()
-        var pids: Set<pid_t> = []
+        var holders: [pid_t: [String]] = [:]
         for (pid, list) in byProcess where pid.int32Value != me {
-            let holds = list.contains { a in
-                guard let type = a["AssertType"] as? String, sleepTypes.contains(type) else { return false }
+            let names = list.compactMap { a -> String? in
+                guard let type = a["AssertType"] as? String, sleepTypes.contains(type) else { return nil }
                 let name = a["AssertName"] as? String ?? ""
-                return !media.contains { name.contains($0) }
+                return media.contains { name.contains($0) } ? nil : name
             }
-            if holds { pids.insert(pid.int32Value) }
+            if !names.isEmpty { holders[pid.int32Value] = names }
         }
-        return pids
+        return holders
     }
 }
 

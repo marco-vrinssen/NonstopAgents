@@ -24,9 +24,9 @@ if CommandLine.arguments.contains("--live") {
         for i in sightings.indices where sightings[i].agent.id == "claude" {
             sightings[i].status = ClaudeSessions.status(pid: sightings[i].pid, started: snapshot[sightings[i].pid]?.start ?? 0)
         }
-        let asserting = Assertions.holders()
-        var working = tracker.update(table: snapshot, sightings: sightings, asserting: asserting, now: now)
-        let apps = Agent.appsWorking(agents: Agent.all, asserting: asserting, table: snapshot, counted: working)
+        let holders = Assertions.holders()
+        var working = tracker.update(table: snapshot, sightings: sightings, asserting: Set(holders.keys), now: now)
+        let apps = Agent.appsWorking(agents: Agent.all, holders: holders, table: snapshot, counted: working)
         working.formUnion(apps.map(\.pid))
         sightings += apps
         print("--", Date().formatted(date: .omitted, time: .standard), "\(working.count) working")
@@ -79,10 +79,13 @@ assert(found[60] == nil && found[61]?.agent.id == "llamacpp", "ollama serve host
 assert(found[70] == nil, "apps count only through their sleep assertion")
 
 // Apps: an assertion counts the app, unless an agent already counted runs inside it.
-assert(Agent.appsWorking(agents: Agent.all, asserting: [70], table: apps, counted: []).map(\.agent.id) == ["cursor-app"])
+assert(Agent.appsWorking(agents: Agent.all, holders: [70: ["Electron"]], table: apps, counted: []).map(\.agent.id) == ["cursor-app"])
 let insideClaude = table([proc(80, 1, "/Applications/Claude.app/Contents/MacOS/Claude", start: 0),
                           proc(81, 80, "/Users/me/Library/Application Support/Claude/claude-code/2.1.300/claude.app/Contents/MacOS/claude", start: 0)])
-assert(Agent.appsWorking(agents: Agent.all, asserting: [80], table: insideClaude, counted: [81]).isEmpty)
+assert(Agent.appsWorking(agents: Agent.all, holders: [80: ["bridge_turn:1"]], table: insideClaude, counted: [81]).isEmpty)
+assert(Agent.appsWorking(agents: Agent.all, holders: [80: ["Electron"]], table: insideClaude, counted: []).isEmpty,
+       "Claude's general keep-awake setting is not agent work")
+assert(Agent.appsWorking(agents: Agent.all, holders: [80: ["bridge_turn:1"]], table: insideClaude, counted: []).count == 1)
 
 // Activity: CPU per process tree, fresh tools, startup services, quiet timeout.
 let claude = Agent.all[0]

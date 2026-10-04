@@ -160,9 +160,9 @@ final class Model {
         for i in sightings.indices where sightings[i].agent.id == "claude" {
             sightings[i].status = ClaudeSessions.status(pid: sightings[i].pid, started: table[sightings[i].pid]?.start ?? 0)
         }
-        let asserting = Assertions.holders()
-        var working = tracker.update(table: table, sightings: sightings, asserting: asserting, now: now.timeIntervalSince1970)
-        let apps = Agent.appsWorking(agents: agents, asserting: asserting, table: table, counted: working)
+        let holders = Assertions.holders()
+        var working = tracker.update(table: table, sightings: sightings, asserting: Set(holders.keys), now: now.timeIntervalSince1970)
+        let apps = Agent.appsWorking(agents: agents, holders: holders, table: table, counted: working)
         working.formUnion(apps.map(\.pid))
         sightings += apps
 
