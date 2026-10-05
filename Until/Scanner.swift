@@ -27,15 +27,21 @@ enum ProcessTable {
         return (UInt64(info.numer), UInt64(info.denom))
     }()
 
+    /// Every process, or an empty table when the kernel could not be read.
     static func snapshot() -> [pid_t: Proc] {
         var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_ALL, 0]
+        var kinfo: [kinfo_proc] = []
         var size = 0
-        guard sysctl(&mib, 4, nil, &size, nil, 0) == 0 else { return [:] }
-
-        // Headroom for processes spawned between the two calls.
-        var kinfo = [kinfo_proc](repeating: kinfo_proc(), count: size / MemoryLayout<kinfo_proc>.stride + 64)
-        size = kinfo.count * MemoryLayout<kinfo_proc>.stride
-        guard sysctl(&mib, 4, &kinfo, &size, nil, 0) == 0 else { return [:] }
+        // The table can grow between sizing and reading it; ENOMEM means try again.
+        for _ in 0..<3 {
+            guard sysctl(&mib, 4, nil, &size, nil, 0) == 0 else { return [:] }
+            kinfo = [kinfo_proc](repeating: kinfo_proc(), count: size / MemoryLayout<kinfo_proc>.stride + 64)
+            size = kinfo.count * MemoryLayout<kinfo_proc>.stride
+            if sysctl(&mib, 4, &kinfo, &size, nil, 0) == 0 { break }
+            guard errno == ENOMEM else { return [:] }
+            size = 0
+        }
+        guard size > 0 else { return [:] }
 
         let me = getuid()
         var table: [pid_t: Proc] = [:]
@@ -154,6 +160,12 @@ enum ClaudeSessions {
         let transcript = projects.appendingPathComponent("\(slug)/\(session.id).jsonl")
         titleQueue.async { readTitles(transcript, key: session.id) }
         return titles[session.id]
+    }
+
+    /// Drops cached titles of sessions that have ended, so a long uptime does not accumulate them.
+    static func forget(except live: Set<String>) {
+        titles = titles.filter { live.contains($0.key) }
+        titleQueue.async { progress = progress.filter { live.contains($0.key) } }
     }
 
     private static let titleQueue = DispatchQueue(label: "Until.titles", qos: .utility)
