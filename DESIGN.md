@@ -63,5 +63,6 @@ Until stays a menu bar app while settings are open: no Dock icon and no Command-
 An hourglass in plum `#371236` on lavender `#C399FF`: two full-width bars and two flat funnels in a 500 pt square, centered on a 1024 pt canvas. Marco simplified it in Figma (Cortex, frame `1196:3`).
 
 - `Design/Icon/AppIcon.svg` is the source: the full-bleed Figma export, with the mark as one path so its parts render without seams.
-- `./build.sh icon` renders it into the asset catalog on the macOS icon grid, an 824 pt rounded square inside 1024 pt, at every size.
+- `./build.sh icon` renders it into the asset catalog on the macOS icon grid, an 824 pt rounded square inside 1024 pt, at every size. Edges land on whole pixels, so small sizes stay sharp on 1x displays.
+- The About window gets the icon file itself. At runtime macOS offers a single 256 px rendition, which blurs at About's 64 pt.
 - macOS 27 adds glass effects to this flat icon on its own. Layered variants for dark, clear and tinted appearances need an Icon Composer file, made in Xcode.
