@@ -47,10 +47,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         return false
     }
 
-    // Left click opens settings. Right click or control-click opens the menu with the controls.
+    // Left click turns Until on or off. Right click or control-click opens the menu.
     @objc private func clicked() {
         let event = NSApp.currentEvent
-        if event?.type == .rightMouseUp || event?.modifierFlags.contains(.control) == true { showMenu() } else { openSettings() }
+        if event?.type == .rightMouseUp || event?.modifierFlags.contains(.control) == true { showMenu() } else { model.toggle() }
     }
 
     private func showMenu() {

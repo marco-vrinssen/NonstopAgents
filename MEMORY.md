@@ -10,7 +10,7 @@ Until is a macOS menu bar app that counts working AI agents and keeps the Mac aw
 
 - Pure native macOS components only, no custom styling. Marco dropped the Linear-based design on 2026-10-04. `DESIGN.md` describes what is used.
 - Menu bar: `sparkle` SF Symbol plus the working count in SF Mono. A size configuration on SF Symbols makes the status bar crop them, so there is none.
-- Left click opens settings, right-click opens the menu. The on or off switch is the first menu item with a stock status dot (green on, yellow paused, gray off).
+- Left click turns Until on or off, right-click opens the menu, Settings opens from the menu (Marco, 2026-10-05). The first menu item shows the state with a stock status dot (green on, yellow paused, gray off) and also toggles.
 - Settings hold only lasting options (General, Agents, About). Controls live in the menu. No settings that change macOS sleep behavior beyond holding idle sleep: display sleep and sleep timers stay with macOS.
 - No root `pmset` sleep helper: App Review 2.4.5(v) forbids it, and Marco asked to remove it on 2026-10-05.
 - Agents are named after their task. Claude Code: `/rename` name, else the AI title from the transcript (`custom-title`, `ai-title` lines). Others: project folder.
