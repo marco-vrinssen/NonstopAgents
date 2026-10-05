@@ -15,7 +15,9 @@
 
 ## Menu bar
 
-The status item is a pill with the number of working agents, the `sparkle` SF Symbol and the time left on a timed keep-awake cut out of it, such as `2 ✦ 29m`. It is a template image, so the menu bar tints it for light and dark, like the battery icon with its cutout bolt. It is 14 pt tall, as tall as the battery. Text is SF Mono at 10 pt semibold, so the width holds as numbers change. Every part starts on a whole point, so edges stay sharp on 1x displays.
+The status item is a pill with the number of working agents, the `sparkle` SF Symbol and the time left on a timed keep-awake cut out of it, such as `2 ✦ 29m`. It is a template image, so the menu bar tints it for light and dark, like the battery icon with its cutout bolt. Text is SF Mono at 12 pt semibold, so the width holds as numbers change. Every part starts on a whole point, so edges stay sharp on 1x displays.
+
+The pill fills the item. macOS pads a menu bar item by 8 pt on each side and, while the menu is open, draws a 24 pt highlight 2 pt past that. The image's alignment rect leaves that padding out, so the 20 pt pill sits 2 pt inside the highlight on every side. macOS 27 places items 1 pt above the menu bar's center, where it centers the highlight, so the alignment rect also moves the pill down by the measured difference.
 
 | State | Shows |
 | --- | --- |

@@ -32,6 +32,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.autoenablesItems = false
         model.onChange = { [weak self] in self?.refresh() }
         refresh()
+
+        // macOS slides the item into place after launch; the pill follows to the menu bar's center.
+        NotificationCenter.default.addObserver(self, selector: #selector(refresh), name: NSWindow.didMoveNotification, object: item.button?.window)
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -56,10 +59,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         item.menu = nil
     }
 
-    private func refresh() {
+    @objc private func refresh() {
         guard let button = item?.button else { return }
         let label = "\(model.stateTitle). \(model.summary)."
-        button.image = statusImage()
+        button.image = statusImage(lift: menuBarLift(of: button))
         button.appearsDisabled = model.isPaused
         button.toolTip = label
         button.setAccessibilityLabel(label)
@@ -67,13 +70,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     /// The working count, the sparkle and the time left on a timed keep-awake, cut out of a pill
-    /// the menu bar tints, as tall as the battery icon. Every part starts on a whole point so its
-    /// edges stay sharp on 1x displays. SF Mono keeps the width steady as the numbers change.
-    private func statusImage() -> NSImage {
-        let height = 14.0, padding = 5.0, gap = 2.0
-        let font = NSFont.monospacedSystemFont(ofSize: 10, weight: .semibold)
+    /// the menu bar tints. Every part starts on a whole point so its edges stay sharp on 1x
+    /// displays, and SF Mono keeps the width steady as the numbers change.
+    private func statusImage(lift: CGFloat) -> NSImage {
+        let height = 20.0, gap = 3.0
+        let font = NSFont.monospacedSystemFont(ofSize: 12, weight: .semibold)
+
+        // The same space around the text on every side.
+        let padding = ((height - font.capHeight) / 2).rounded()
         let spark = NSImage(systemSymbolName: "sparkle", accessibilityDescription: nil)?
-            .withSymbolConfiguration(.init(pointSize: 10, weight: .semibold)) ?? NSImage()
+            .withSymbolConfiguration(.init(pointSize: 12, weight: .semibold)) ?? NSImage()
         let text = { (string: String?) in string.map { NSAttributedString(string: $0, attributes: [.font: font]) } }
         let count = text(model.workingCount > 0 ? "\(model.workingCount)" : nil), left = text(model.manualRemaining)
         let widths = [count?.size().width, spark.size.width, left?.size().width].compactMap { $0?.rounded(.up) }
@@ -82,20 +88,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let image = NSImage(size: size, flipped: false) { rect in
             NSBezierPath(roundedRect: rect, xRadius: height / 2, yRadius: height / 2).fill()
             NSGraphicsContext.current?.compositingOperation = .destinationOut
-            let baseline = ((height - font.capHeight) / 2).rounded()
             var x = padding
             if let count {
-                count.draw(with: NSRect(x: x, y: baseline, width: rect.width, height: 0))
+                count.draw(with: NSRect(x: x, y: padding, width: rect.width, height: 0))
                 x += count.size().width.rounded(.up) + gap
             }
             let sparkY = ((height - spark.size.height) / 2).rounded()
             spark.draw(in: NSRect(origin: NSPoint(x: x, y: sparkY), size: spark.size), from: .zero, operation: .destinationOut, fraction: 1)
             x += spark.size.width.rounded(.up) + gap
-            left?.draw(with: NSRect(x: x, y: baseline, width: rect.width, height: 0))
+            left?.draw(with: NSRect(x: x, y: padding, width: rect.width, height: 0))
             return true
         }
         image.isTemplate = true
+
+        // macOS pads a menu bar item by 8 pt on each side and draws the open menu's 24 pt highlight
+        // 2 pt past that. Leaving the padding out of the alignment rect lets the 20 pt pill fill the
+        // item, 2 pt inside the highlight all around. The lift moves it to the menu bar's center.
+        image.alignmentRect = NSRect(x: 8, y: lift, width: size.width - 16, height: height)
         return image
+    }
+
+    /// How far the item sits above the menu bar's center, in whole points. macOS 27 centers the
+    /// open menu's highlight in the menu bar but the item 1 pt higher.
+    private func menuBarLift(of button: NSStatusBarButton) -> CGFloat {
+        guard let window = button.window, let screen = window.screen, let superview = button.superview,
+              let bar = NSApp.mainMenu?.menuBarHeight, bar > 0 else { return 0 }
+
+        // The layout rect, unlike the frame, ignores the pill's own alignment rect.
+        let layout = superview.convert(button.alignmentRect(forFrame: button.frame), to: nil)
+        let lift = (window.convertToScreen(layout).midY - (screen.frame.maxY - bar / 2)).rounded()
+
+        // Until macOS places the item, its window sits elsewhere, so only a small lift is real.
+        return abs(lift) < bar / 4 ? lift : 0
     }
 
     // MARK: Menu
