@@ -9,7 +9,7 @@ Until is a macOS menu bar app that counts working AI agents and keeps the Mac aw
 ## Decisions
 
 - Pure native macOS components only, no custom styling. Marco dropped the Linear-based design on 2026-10-04. `DESIGN.md` describes what is used.
-- Menu bar: one attributed title, count then `sparkle` (text attachment) then time left on a timed keep-awake, SF Mono. A size configuration on SF Symbols in a status item image crops them. A text title ignores `appearsDisabled`, so off and paused use the secondary label color.
+- Menu bar (Marco, 2026-10-05): a template image of a 14 pt pill with the count, `sparkle` and time left on a timed keep-awake cut out of it, SF Mono 10 pt semibold, parts on whole points. Replaced an attributed title whose sparkle attachment blurred at 1x. Off and paused dim through `appearsDisabled`, which images honor and text titles ignore.
 - Left click turns Until on or off, right-click opens the menu, Settings opens from the menu (Marco, 2026-10-05). The first menu item shows the state with a stock status dot (green on, yellow paused, gray off) and also toggles.
 - Settings hold only lasting options (General: Login, Notifications, Sleep exceptions; Agents). Turning off the heat exception needs a confirmation. About is the standard About window from the menu, given `AppIcon.icns` because the runtime icon is a single 256 px rendition that blurs at 1x. Controls live in the menu. Until is purely a background menu bar app: no Dock icon, also while settings are open (Marco, 2026-10-05). No settings that change macOS sleep behavior beyond holding idle sleep: display sleep and sleep timers stay with macOS.
 - No root `pmset` sleep helper: App Review 2.4.5(v) forbids it, and Marco asked to remove it on 2026-10-05.
