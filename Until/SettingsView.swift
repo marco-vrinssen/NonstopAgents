@@ -7,6 +7,7 @@ import SwiftUI
 @Observable
 final class SettingsDraft {
     var newName = ""
+    var confirmHeatOff = false
 }
 
 /// The settings window: toolbar tabs, the native macOS settings layout, one grouped form per tab.
@@ -14,9 +15,10 @@ final class SettingsDraft {
 @MainActor
 enum SettingsWindow {
     static func make(model: Model) -> NSWindow {
+        let draft = SettingsDraft()
         let panes: [(String, String, AnyView)] = [
-            ("General", "gearshape", AnyView(GeneralPane(model: model))),
-            ("Agents", "sparkles", AnyView(AgentsPane(model: model, draft: SettingsDraft()))),
+            ("General", "gearshape", AnyView(GeneralPane(model: model, draft: draft))),
+            ("Agents", "sparkles", AnyView(AgentsPane(model: model, draft: draft))),
         ]
         let tabs = NSTabViewController()
         tabs.tabStyle = .toolbar
@@ -41,6 +43,7 @@ enum SettingsWindow {
 
 private struct GeneralPane: View {
     @Bindable var model: Model
+    @Bindable var draft: SettingsDraft
 
     var body: some View {
         Form {
@@ -48,32 +51,55 @@ private struct GeneralPane: View {
                 Toggle("Open at login", isOn: Binding(get: { model.loginItem }, set: model.setLoginItem))
             }
 
-            Section("Notifications") {
-                Toggle("When agents finish while you are away", isOn: $model.notifyFinished)
-                    .toggleStyle(.checkbox)
-                Toggle("When the battery reaches its limit", isOn: $model.notifyBattery)
-                    .toggleStyle(.checkbox)
-                Toggle("When the Mac gets too hot", isOn: $model.notifyHeat)
-                    .toggleStyle(.checkbox)
-            }
-
             Section {
-                Picker("On battery, stop at", selection: $model.batteryFloor) {
-                    ForEach(Array(stride(from: 5, through: 50, by: 5)), id: \.self) { Text("\($0)%").tag($0) }
-                    Text("Never stay awake on battery").tag(100)
+                Toggle("Send notifications", isOn: $model.notificationsEnabled)
+                Group {
+                    Toggle("When agents finish while you are away", isOn: $model.notifyFinished)
+                    Toggle("When reaching the battery level", isOn: $model.notifyBattery)
+                    Toggle("When reaching high temperatures", isOn: $model.notifyHeat)
                 }
+                .toggleStyle(.checkbox)
+                .disabled(!model.notificationsEnabled)
             } header: {
-                Text("Battery")
+                Text("Notifications")
             } footer: {
-                Text(model.battery.level.map { "Now at \($0)%. At or below the limit Until lets the Mac sleep, also with the lid closed." }
-                     ?? "This Mac has no battery.")
+                if model.notificationsDenied {
+                    HStack {
+                        Text("Notifications for Until are turned off in System Settings.")
+                        Spacer()
+                        Button("Open System Settings") {
+                            let id = Bundle.main.bundleIdentifier ?? ""
+                            NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension?id=\(id)")!)
+                        }
+                    }
+                }
             }
 
-            Section("Heat") {
-                Toggle("Let the Mac sleep when it gets hot", isOn: $model.thermalGuard)
+            Section("Sleep exceptions") {
+                Picker(selection: $model.batteryFloor) {
+                    ForEach(Array(stride(from: 5, through: 50, by: 5)), id: \.self) { Text("\($0)%").tag($0) }
+                } label: {
+                    Text("Let Mac sleep when reaching this battery level")
+                    Text(model.battery.level.map { "Applies on battery, also with the lid closed. Now at \($0)%." }
+                         ?? "Applies on battery. This Mac has none.")
+                }
+                Toggle(isOn: Binding(get: { model.thermalGuard }, set: { on in
+                    // Turning it off can let a closed Mac overheat, so that needs a confirmation.
+                    if on { model.thermalGuard = true } else { draft.confirmHeatOff = true }
+                })) {
+                    Text("Let Mac sleep when reaching high temperatures")
+                    Text("Applies when macOS reports high temperatures, sooner with the lid closed.")
+                }
             }
         }
         .pane()
+        .onAppear(perform: model.refreshNotificationStatus)
+        .alert("Keep Mac awake at high temperatures?", isPresented: $draft.confirmHeatOff) {
+            Button("Keep awake", role: .destructive) { model.thermalGuard = false }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Until will no longer let the Mac sleep when it runs hot. Closed in a bag, it can overheat.")
+        }
     }
 }
 
@@ -88,7 +114,7 @@ private struct AgentsPane: View {
             } header: {
                 Text("Agents")
             } footer: {
-                Text("An agent counts while it streams a reply, runs tools or reports itself busy. One that waits for you, or an editor or terminal that is merely open, does not.")
+                Text("An agent counts while it works, not while it waits for you.")
             }
 
             #if APPSTORE
@@ -103,7 +129,7 @@ private struct AgentsPane: View {
             } header: {
                 Text("Claude Code")
             } footer: {
-                Text("Claude Code keeps each session's state and title in the .claude folder. Reading it keeps the count exact and names each session after its conversation.")
+                Text("Lets Until read each Claude Code session's state and title.")
             }
             #endif
 
@@ -112,7 +138,7 @@ private struct AgentsPane: View {
             } header: {
                 Text("Apps")
             } footer: {
-                Text("Cursor and VS Code count while their built-in agent runs. Claude counts while it runs a turn sent to it remotely. Their agents on the command line are listed above.")
+                Text("Cursor and VS Code count while their built-in agent runs, Claude during remote turns.")
             }
 
             Section("Local models") {
@@ -134,7 +160,7 @@ private struct AgentsPane: View {
             } header: {
                 Text("Other processes")
             } footer: {
-                Text("Add any command line tool by its process name. It counts while it works, like the agents above.")
+                Text("Add any command line tool by its process name. It counts while it works.")
             }
         }
         .pane(height: 560)

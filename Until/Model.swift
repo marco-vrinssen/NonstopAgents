@@ -50,11 +50,12 @@ final class Model {
     // Settings, persisted in UserDefaults.
     var enabled = Model.load("enabled", true) { didSet { save("enabled", enabled); tick() } }
     var lidMode = Model.load("lidMode", false) { didSet { save("lidMode", lidMode); tick() } }
-    var batteryFloor = Model.load("batteryFloor", 20) { didSet { save("batteryFloor", batteryFloor); tick() } }
+    var batteryFloor = min(50, Model.load("batteryFloor", 20)) { didSet { save("batteryFloor", batteryFloor); tick() } }
     var thermalGuard = Model.load("thermalGuard", true) { didSet { save("thermalGuard", thermalGuard); tick() } }
-    var notifyFinished = Model.load("notifyFinished", true) { didSet { save("notifyFinished", notifyFinished); requestNotifications() } }
-    var notifyBattery = Model.load("notifyBattery", true) { didSet { save("notifyBattery", notifyBattery); requestNotifications() } }
-    var notifyHeat = Model.load("notifyHeat", true) { didSet { save("notifyHeat", notifyHeat); requestNotifications() } }
+    var notificationsEnabled = Model.load("notificationsEnabled", true) { didSet { save("notificationsEnabled", notificationsEnabled); requestNotifications() } }
+    var notifyFinished = Model.load("notifyFinished", true) { didSet { save("notifyFinished", notifyFinished) } }
+    var notifyBattery = Model.load("notifyBattery", true) { didSet { save("notifyBattery", notifyBattery) } }
+    var notifyHeat = Model.load("notifyHeat", true) { didSet { save("notifyHeat", notifyHeat) } }
     var disabledAgents = Set(Model.load("disabledAgents", [String]())) { didSet { save("disabledAgents", Array(disabledAgents)); rescan() } }
     var customAgents = Model.load("customAgents", [String]()) { didSet { save("customAgents", customAgents); rescan() } }
 
@@ -63,6 +64,10 @@ final class Model {
     private(set) var status = Status.idle
     private(set) var battery = Battery.read()
     private(set) var manualUntil: Date?
+    /// The chosen keep-awake duration in minutes, 0 for until turned off.
+    private(set) var manualChoice: Int?
+    /// macOS has notifications for Until turned off.
+    private(set) var notificationsDenied = false
     private(set) var ignored: Set<pid_t> = []
     private(set) var loginItem = SMAppService.mainApp.status == .enabled
     private(set) var claudeAccess = false
@@ -108,15 +113,31 @@ final class Model {
 
     func toggle() { enabled.toggle() }
 
-    func keepAwake(minutes: Int?) {
-        manualUntil = minutes.map { Date().addingTimeInterval(TimeInterval($0) * 60) } ?? .distantFuture
+    func keepAwake(minutes: Int) {
+        manualUntil = minutes > 0 ? Date().addingTimeInterval(TimeInterval(minutes) * 60) : .distantFuture
+        manualChoice = minutes
         if !enabled { enabled = true } else { tick() }
     }
 
     func stopKeepingAwake() {
         manualUntil = nil
+        manualChoice = nil
         tick()
     }
+
+    /// Time left on a timed keep-awake, such as "29m" or "1h 30m".
+    var manualRemaining: String? {
+        guard let until = manualUntil, until != .distantFuture else { return nil }
+        let minutes = (until.timeIntervalSinceNow / 60).rounded(.up)
+        return Self.durationFormatter.string(from: max(60, minutes * 60))
+    }
+
+    private static let durationFormatter: DateComponentsFormatter = {
+        let formatter = DateComponentsFormatter()
+        formatter.allowedUnits = [.hour, .minute]
+        formatter.unitsStyle = .abbreviated
+        return formatter
+    }()
 
     func toggleIgnore(_ run: AgentRun) {
         if ignored.remove(run.id) == nil { ignored.insert(run.id) }
@@ -181,7 +202,10 @@ final class Model {
     func tick() {
         let now = Date()
         battery = Battery.read()
-        if let until = manualUntil, until <= now { manualUntil = nil }
+        if let until = manualUntil, until <= now {
+            manualUntil = nil
+            manualChoice = nil
+        }
 
         let count = workingCount
         let manual = manualUntil != nil
@@ -276,9 +300,20 @@ final class Model {
 
     // MARK: Notifications
 
-    private func requestNotifications() {
-        guard notifyFinished || notifyBattery || notifyHeat else { return }
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert]) { _, _ in }
+    /// Asks macOS once for permission; after that macOS answers from the user's choice.
+    func requestNotifications() {
+        guard notificationsEnabled else { return }
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert]) { [weak self] _, _ in
+            DispatchQueue.main.async { self?.refreshNotificationStatus() }
+        }
+    }
+
+    func refreshNotificationStatus() {
+        UNUserNotificationCenter.current().getNotificationSettings { [weak self] settings in
+            let status = settings.authorizationStatus
+            log.notice("Notification permission: \(status.rawValue, privacy: .public)")
+            DispatchQueue.main.async { self?.notificationsDenied = status == .denied }
+        }
     }
 
     private func notifyTransitions(count: Int, lowBattery: Bool, hot: Bool) {
@@ -293,6 +328,7 @@ final class Model {
     }
 
     private func post(_ title: String, _ body: String) {
+        guard notificationsEnabled else { return }
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body
