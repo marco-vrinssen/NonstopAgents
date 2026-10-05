@@ -4,6 +4,7 @@
 #   ./build.sh appstore   sandboxed App Store edition         -> build/AppStore/Until.app
 #   ./build.sh run        build the direct edition and launch it
 #   ./build.sh check      run the detection self-check (add --live to watch this Mac)
+#   ./build.sh icon       render Design/Icon/AppIcon.svg into the app icon set
 set -eu
 cd "$(dirname "$0")"
 
@@ -48,6 +49,11 @@ bundle() {
 
 case "${1:-}" in
     check) checks "$@" ;;
+    icon)
+        mkdir -p build
+        swiftc -O Design/Icon/render.swift -o build/render-icon
+        build/render-icon Design/Icon/AppIcon.svg Until/Assets.xcassets/AppIcon.appiconset
+        ;;
     appstore) bundle "App Store" build/AppStore Config/UntilAppStore.entitlements "-D APPSTORE" com.marcovrinssen.until ;;
     run)
         bundle direct build Config/Until.entitlements "" com.marcovrinssen.until.direct
