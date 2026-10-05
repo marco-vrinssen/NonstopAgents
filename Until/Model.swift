@@ -52,7 +52,9 @@ final class Model {
     var lidMode = Model.load("lidMode", false) { didSet { save("lidMode", lidMode); tick() } }
     var batteryFloor = Model.load("batteryFloor", 20) { didSet { save("batteryFloor", batteryFloor); tick() } }
     var thermalGuard = Model.load("thermalGuard", true) { didSet { save("thermalGuard", thermalGuard); tick() } }
-    var notify = Model.load("notify", true) { didSet { save("notify", notify); if notify { requestNotifications() } } }
+    var notifyFinished = Model.load("notifyFinished", true) { didSet { save("notifyFinished", notifyFinished); requestNotifications() } }
+    var notifyBattery = Model.load("notifyBattery", true) { didSet { save("notifyBattery", notifyBattery); requestNotifications() } }
+    var notifyHeat = Model.load("notifyHeat", true) { didSet { save("notifyHeat", notifyHeat); requestNotifications() } }
     var disabledAgents = Set(Model.load("disabledAgents", [String]())) { didSet { save("disabledAgents", Array(disabledAgents)); rescan() } }
     var customAgents = Model.load("customAgents", [String]()) { didSet { save("customAgents", customAgents); rescan() } }
 
@@ -73,6 +75,7 @@ final class Model {
     private var timer: Timer?
     private var wasWorking = false
     private var notifiedBattery = false
+    private var notifiedHeat = false
     private var known: [pid_t: AgentRun] = [:]
 
     var workingCount: Int { runs.filter { $0.working && !ignored.contains($0.id) }.count }
@@ -97,7 +100,7 @@ final class Model {
         NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.rescan() }
         }
-        if notify { requestNotifications() }
+        requestNotifications()
         rescan()
     }
 
@@ -207,7 +210,7 @@ final class Model {
             let names = runs.filter(\.working).map { "\($0.agent.name) \($0.id)" }.joined(separator: ", ")
             log.notice("\(String(describing: self.status), privacy: .public), lid \(self.lidHeld), working: \(names, privacy: .public)")
         }
-        notifyTransitions(count: enabled ? count : 0, lowBattery: lowBattery && wanted && enabled)
+        notifyTransitions(count: enabled ? count : 0, lowBattery: lowBattery && wanted && enabled, hot: hot && wanted && enabled)
         onChange?()
     }
 
@@ -274,20 +277,22 @@ final class Model {
     // MARK: Notifications
 
     private func requestNotifications() {
+        guard notifyFinished || notifyBattery || notifyHeat else { return }
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert]) { _, _ in }
     }
 
-    private func notifyTransitions(count: Int, lowBattery: Bool) {
+    private func notifyTransitions(count: Int, lowBattery: Bool, hot: Bool) {
         // Only when nobody is at the Mac; at the desk the count already says it.
         let away = CGEventSource.secondsSinceLastEventType(.hidSystemState, eventType: CGEventType(rawValue: ~0)!) > 120
-        if wasWorking, count == 0, away { post("Agents finished", "Until will let your Mac sleep.") }
+        if notifyFinished, wasWorking, count == 0, away { post("Agents finished", "Until will let your Mac sleep.") }
         wasWorking = count > 0
-        if lowBattery, !notifiedBattery { post("Until paused", "Battery is at \(battery.level ?? 0)%. Your Mac can sleep now.") }
+        if notifyBattery, lowBattery, !notifiedBattery { post("Until paused", "Battery is at \(battery.level ?? 0)%. Your Mac can sleep now.") }
         notifiedBattery = lowBattery
+        if notifyHeat, hot, !notifiedHeat { post("Until paused", "Your Mac is hot. It can sleep now.") }
+        notifiedHeat = hot
     }
 
     private func post(_ title: String, _ body: String) {
-        guard notify else { return }
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body

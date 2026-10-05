@@ -33,7 +33,7 @@ A standard NSMenu, top to bottom:
 1. The switch: "Until is on", "Until is off" or "Until is paused", with a one-line summary as subtitle. A stock AppKit status image shows the state: green when on, yellow when paused, gray when off. Clicking it turns Until on or off. Its image is forced visible, since macOS 27 hides menu item images by default.
 2. Agents: a section header, then one item per agent process, working ones first. The title is the task: a Claude Code conversation title, else the project folder, else the tool. The subtitle is tool, folder and working or quiet. Each agent has a submenu to stop keeping awake for it, show its folder and see its process and host app.
 3. Actions: "Keep awake for" with durations, "Stay awake with lid closed" as a checkmark item.
-4. App: "Settings…" with Command-comma, "Quit Until" with Command-Q.
+4. App: "About Until" (the standard About window), "Settings…" with Command-comma, "Quit Until" with Command-Q.
 
 ## Settings
 
@@ -43,13 +43,12 @@ Settings hold only lasting options. Everything used day to day is in the menu.
 
 | Tab | Symbol | Contents |
 | --- | --- | --- |
-| General | `gearshape` | Open at login, notifications, battery limit, heat |
+| General | `gearshape` | Login, notification choices as checkboxes, battery limit with its note, heat |
 | Agents | `sparkles` | A toggle per agent, apps, local models, other processes |
-| About | `info.circle` | Icon, name, version, copyright |
 
-While settings are open Until is a regular app: it shows in the Dock and in Command-Tab, with the standard app, File, Edit and Window menus. Closing settings returns it to the menu bar only.
+Until stays a menu bar app while settings are open: no Dock icon and no Command-Tab entry. Settings come back through the menu. A hidden main menu carries Command-W, Command-Q and editing keys for the settings window.
 
-- General and Agents are SwiftUI grouped Forms. Every section has a header, which also sets the space between sections. About is a centered stack like the standard about panel.
+- General and Agents are SwiftUI grouped Forms. Every section has a header, which also sets the space between sections.
 - Section footers are plain text, so the form styles them as secondary notes.
 - Controls are system toggles, pickers, buttons and text fields, unstyled, in the user's accent color.
 

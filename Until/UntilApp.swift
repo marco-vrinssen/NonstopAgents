@@ -2,7 +2,7 @@ import AppKit
 
 @main
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWindowDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     static func main() {
         if CommandLine.arguments.contains("--lid-guard") { Clamshell.runGuard() }
         let app = NSApplication.shared
@@ -21,7 +21,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         model = Model()
-        NSApp.mainMenu = Self.mainMenu()
+        NSApp.mainMenu = Self.keyMenu()
         item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = item.button {
             button.target = self
@@ -41,7 +41,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         model.shutdown()
     }
 
-    /// The Dock icon shows while settings are open; clicking it brings them back.
+    /// Opening Until again while it runs, from Finder or Spotlight, shows its settings.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         openSettings()
         return false
@@ -130,6 +130,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         menu.addItem(lid)
         menu.addItem(.separator())
 
+        menu.addItem(action("About Until", #selector(showAbout)))
         menu.addItem(action("Settings…", #selector(openSettings), key: ","))
         menu.addItem(action("Quit Until", #selector(NSApplication.terminate(_:)), key: "q", target: NSApp))
     }
@@ -185,23 +186,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
 
     // MARK: Settings
 
-    @objc private func openSettings() { showSettings(tab: nil) }
-    @objc private func openAbout() { showSettings(tab: SettingsWindow.aboutTab) }
-
-    private func showSettings(tab: Int?) {
-        if settings == nil {
-            settings = SettingsWindow.make(model: model)
-            settings?.delegate = self
-        }
-        if let tab { (settings?.contentViewController as? NSTabViewController)?.selectedTabViewItemIndex = tab }
-        // A regular app while settings are open, so they are in the Dock and in Command-Tab.
-        NSApp.setActivationPolicy(.regular)
+    @objc private func openSettings() {
+        if settings == nil { settings = SettingsWindow.make(model: model) }
         present { self.settings }
     }
 
-    func windowWillClose(_ notification: Notification) {
-        guard notification.object as? NSWindow === settings else { return }
-        NSApp.setActivationPolicy(.accessory)
+    /// The standard macOS About window.
+    @objc private func showAbout() {
+        present {
+            NSApp.orderFrontStandardAboutPanel(nil)
+            return NSApp.windows.first { $0.isVisible && $0.level == .normal && $0 !== self.settings }
+        }
     }
 
     /// A menu bar app is not the active app when its icon is clicked, and macOS may decline to
@@ -216,48 +211,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSWind
         }
     }
 
-    /// The standard menus, shown while settings are in front: About, Settings, Hide and Quit,
-    /// Close, editing for the text field, and the Window menu.
-    private static func mainMenu() -> NSMenu {
+    /// A menu bar app never shows its main menu, but key equivalents in the settings window
+    /// still go through it: Command-W, Command-Q, and editing in the text field.
+    private static func keyMenu() -> NSMenu {
         let bar = NSMenu()
-        func add(_ title: String, _ items: [NSMenuItem]) -> NSMenu {
-            let submenu = NSMenu(title: title)
-            items.forEach(submenu.addItem)
-            let top = NSMenuItem(title: title, action: nil, keyEquivalent: "")
-            top.submenu = submenu
+        func add(_ items: [NSMenuItem]) {
+            let top = NSMenuItem()
+            top.submenu = NSMenu()
+            items.forEach { top.submenu?.addItem($0) }
             bar.addItem(top)
-            return submenu
         }
-        func entry(_ title: String, _ action: Selector, _ key: String = "", _ modifiers: NSEvent.ModifierFlags = .command) -> NSMenuItem {
+        func entry(_ title: String, _ action: Selector, _ key: String, _ modifiers: NSEvent.ModifierFlags = .command) -> NSMenuItem {
             let item = NSMenuItem(title: title, action: action, keyEquivalent: key)
             item.keyEquivalentModifierMask = modifiers
             return item
         }
-        _ = add("Until", [
-            entry("About Until", #selector(AppDelegate.openAbout)),
-            .separator(),
-            entry("Settings…", #selector(AppDelegate.openSettings), ","),
-            .separator(),
-            entry("Hide Until", #selector(NSApplication.hide(_:)), "h"),
-            entry("Hide Others", #selector(NSApplication.hideOtherApplications(_:)), "h", [.command, .option]),
-            entry("Show All", #selector(NSApplication.unhideAllApplications(_:))),
-            .separator(),
-            entry("Quit Until", #selector(NSApplication.terminate(_:)), "q"),
-        ])
-        _ = add("File", [entry("Close", #selector(NSWindow.performClose(_:)), "w")])
-        _ = add("Edit", [
-            entry("Undo", Selector(("undo:")), "z"),
-            entry("Redo", Selector(("redo:")), "z", [.command, .shift]),
-            .separator(),
-            entry("Cut", #selector(NSText.cut(_:)), "x"),
-            entry("Copy", #selector(NSText.copy(_:)), "c"),
-            entry("Paste", #selector(NSText.paste(_:)), "v"),
-            entry("Select All", #selector(NSText.selectAll(_:)), "a"),
-        ])
-        NSApp.windowsMenu = add("Window", [
-            entry("Minimize", #selector(NSWindow.performMiniaturize(_:)), "m"),
-            entry("Zoom", #selector(NSWindow.performZoom(_:))),
-        ])
+        add([entry("Close", #selector(NSWindow.performClose(_:)), "w"),
+             entry("Quit Until", #selector(NSApplication.terminate(_:)), "q")])
+        add([entry("Undo", Selector(("undo:")), "z"),
+             entry("Redo", Selector(("redo:")), "z", [.command, .shift]),
+             entry("Cut", #selector(NSText.cut(_:)), "x"),
+             entry("Copy", #selector(NSText.copy(_:)), "c"),
+             entry("Paste", #selector(NSText.paste(_:)), "v"),
+             entry("Select All", #selector(NSText.selectAll(_:)), "a")])
         return bar
     }
 }
