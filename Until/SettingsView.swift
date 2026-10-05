@@ -13,13 +13,10 @@ final class SettingsDraft {
 /// Only lasting options live here; the controls are in the menu bar menu.
 @MainActor
 enum SettingsWindow {
-    static let aboutTab = 2
-
     static func make(model: Model) -> NSWindow {
         let panes: [(String, String, AnyView)] = [
             ("General", "gearshape", AnyView(GeneralPane(model: model))),
             ("Agents", "sparkles", AnyView(AgentsPane(model: model, draft: SettingsDraft()))),
-            ("About", "info.circle", AnyView(AboutPane())),
         ]
         let tabs = NSTabViewController()
         tabs.tabStyle = .toolbar
@@ -47,16 +44,17 @@ private struct GeneralPane: View {
 
     var body: some View {
         Form {
-            Section("Startup") {
+            Section("Login") {
                 Toggle("Open at login", isOn: Binding(get: { model.loginItem }, set: model.setLoginItem))
             }
 
-            Section {
-                Toggle("Send notifications", isOn: $model.notify)
-            } header: {
-                Text("Notifications")
-            } footer: {
-                Text("When agents finish while you are away from the Mac, and when Until pauses for battery.")
+            Section("Notifications") {
+                Toggle("When agents finish while you are away", isOn: $model.notifyFinished)
+                    .toggleStyle(.checkbox)
+                Toggle("When the battery reaches its limit", isOn: $model.notifyBattery)
+                    .toggleStyle(.checkbox)
+                Toggle("When the Mac gets too hot", isOn: $model.notifyHeat)
+                    .toggleStyle(.checkbox)
             }
 
             Section {
@@ -64,12 +62,15 @@ private struct GeneralPane: View {
                     ForEach(Array(stride(from: 5, through: 50, by: 5)), id: \.self) { Text("\($0)%").tag($0) }
                     Text("Never stay awake on battery").tag(100)
                 }
-                Toggle("Let the Mac sleep when it gets hot", isOn: $model.thermalGuard)
             } header: {
-                Text("Power")
+                Text("Battery")
             } footer: {
                 Text(model.battery.level.map { "Now at \($0)%. At or below the limit Until lets the Mac sleep, also with the lid closed." }
                      ?? "This Mac has no battery.")
+            }
+
+            Section("Heat") {
+                Toggle("Let the Mac sleep when it gets hot", isOn: $model.thermalGuard)
             }
         }
         .pane()
@@ -152,32 +153,6 @@ private struct AgentsPane: View {
         guard !name.isEmpty, !model.customAgents.contains(name) else { return }
         model.customAgents.append(name)
         draft.newName = ""
-    }
-}
-
-private struct AboutPane: View {
-    private let info = Bundle.main.infoDictionary ?? [:]
-
-    var body: some View {
-        VStack(spacing: 8) {
-            Image(nsImage: NSApp.applicationIconImage)
-                .resizable()
-                .frame(width: 96, height: 96)
-            Text("Until")
-                .font(.title2)
-            Text("Version \(info["CFBundleShortVersionString"] as? String ?? "") (\(info["CFBundleVersion"] as? String ?? ""))")
-                .foregroundStyle(.secondary)
-            Text("Keeps your Mac awake while AI agents work, and lets it sleep when they are done.")
-                .multilineTextAlignment(.center)
-                .padding(.top, 8)
-            Text(info["NSHumanReadableCopyright"] as? String ?? "")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .padding(.top, 8)
-        }
-        .padding(32)
-        .frame(width: 500)
-        .fixedSize(horizontal: false, vertical: true)
     }
 }
 
