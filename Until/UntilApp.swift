@@ -59,32 +59,43 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func refresh() {
         guard let button = item?.button else { return }
         let label = "\(model.stateTitle). \(model.summary)."
-        button.attributedTitle = statusTitle()
+        button.image = statusImage()
+        button.appearsDisabled = model.isPaused
         button.toolTip = label
         button.setAccessibilityLabel(label)
         if menuOpen, shownMenu != menuSignature { build() }
     }
 
-    /// The working count, the sparkle and the time left on a timed keep-awake, in that order.
-    /// Text is SF Mono so its width holds as it changes; the menu bar colors it.
-    private func statusTitle() -> NSAttributedString {
-        var style: [NSAttributedString.Key: Any] = [
-            .font: NSFont.monospacedSystemFont(ofSize: NSFont.menuBarFont(ofSize: 0).pointSize, weight: .regular),
-        ]
-        // A text title ignores the disabled appearance, so off and paused dim through the color.
-        if model.isPaused { style[.foregroundColor] = NSColor.secondaryLabelColor }
+    /// The working count, the sparkle and the time left on a timed keep-awake, cut out of a pill
+    /// the menu bar tints, as tall as the battery icon. Every part starts on a whole point so its
+    /// edges stay sharp on 1x displays. SF Mono keeps the width steady as the numbers change.
+    private func statusImage() -> NSImage {
+        let height = 14.0, padding = 5.0, gap = 2.0
+        let font = NSFont.monospacedSystemFont(ofSize: 10, weight: .semibold)
+        let spark = NSImage(systemSymbolName: "sparkle", accessibilityDescription: nil)?
+            .withSymbolConfiguration(.init(pointSize: 10, weight: .semibold)) ?? NSImage()
+        let text = { (string: String?) in string.map { NSAttributedString(string: $0, attributes: [.font: font]) } }
+        let count = text(model.workingCount > 0 ? "\(model.workingCount)" : nil), left = text(model.manualRemaining)
+        let widths = [count?.size().width, spark.size.width, left?.size().width].compactMap { $0?.rounded(.up) }
+        let size = NSSize(width: padding * 2 + widths.reduce(0, +) + gap * Double(widths.count - 1), height: height)
 
-        let spark = NSTextAttachment()
-        spark.image = NSImage(systemSymbolName: "sparkle", accessibilityDescription: "Until")
-        let title = NSMutableAttributedString(attachment: spark)
-        title.addAttributes(style, range: NSRange(location: 0, length: title.length))
-        if model.workingCount > 0 {
-            title.insert(NSAttributedString(string: "\(model.workingCount) ", attributes: style), at: 0)
+        let image = NSImage(size: size, flipped: false) { rect in
+            NSBezierPath(roundedRect: rect, xRadius: height / 2, yRadius: height / 2).fill()
+            NSGraphicsContext.current?.compositingOperation = .destinationOut
+            let baseline = ((height - font.capHeight) / 2).rounded()
+            var x = padding
+            if let count {
+                count.draw(with: NSRect(x: x, y: baseline, width: rect.width, height: 0))
+                x += count.size().width.rounded(.up) + gap
+            }
+            let sparkY = ((height - spark.size.height) / 2).rounded()
+            spark.draw(in: NSRect(origin: NSPoint(x: x, y: sparkY), size: spark.size), from: .zero, operation: .destinationOut, fraction: 1)
+            x += spark.size.width.rounded(.up) + gap
+            left?.draw(with: NSRect(x: x, y: baseline, width: rect.width, height: 0))
+            return true
         }
-        if let left = model.manualRemaining {
-            title.append(NSAttributedString(string: " \(left)", attributes: style))
-        }
-        return title
+        image.isTemplate = true
+        return image
     }
 
     // MARK: Menu

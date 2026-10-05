@@ -3,7 +3,7 @@
 ## In short
 
 - Until is a pure native macOS app. Every element is a system component, an SF Symbol or a system color.
-- The menu bar presence is the `sparkle` SF Symbol with the number of working agents next to it in SF Mono.
+- The menu bar presence is a pill with the number of working agents and the `sparkle` SF Symbol cut out of it, in SF Mono.
 - No custom colors, fonts, views or styling. Appearance, accent color, contrast and accessibility come from macOS.
 
 ## Principles
@@ -15,16 +15,14 @@
 
 ## Menu bar
 
-The status item is one line of text: the number of working agents, the `sparkle` SF Symbol, and the time left on a timed keep-awake, such as `2 ✦ 29m`. The sparkle is a text attachment, so it sits on the text baseline. Text is SF Mono at the menu bar's font size, so the width holds as numbers change, and the menu bar colors it for light and dark.
+The status item is a pill with the number of working agents, the `sparkle` SF Symbol and the time left on a timed keep-awake cut out of it, such as `2 ✦ 29m`. It is a template image, so the menu bar tints it for light and dark, like the battery icon with its cutout bolt. It is 14 pt tall, as tall as the battery. Text is SF Mono at 10 pt semibold, so the width holds as numbers change. Every part starts on a whole point, so edges stay sharp on 1x displays.
 
 | State | Shows |
 | --- | --- |
 | On, nothing to do | `✦` |
 | Agents working | `2 ✦` |
 | Timed keep-awake running | `2 ✦ 29m`, or `✦ 29m` without agents |
-| Off, or paused for battery or heat | The same in the secondary label color |
-
-A text title ignores the button's disabled appearance, so off and paused dim through the color instead.
+| Off, or paused for battery or heat | The same, dimmed through the button's disabled appearance |
 
 - Left click turns Until on or off. Right-click or control-click opens the menu, which also opens settings.
 - The tooltip and accessibility label read the state and summary, such as "Until is on. 2 agents working, Mac stays awake."
