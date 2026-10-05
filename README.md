@@ -1,12 +1,12 @@
 # Until
 
-A dot in the macOS menu bar that counts the AI agents working on your Mac and keeps it awake until they finish, lid closed included. Then it lets the Mac sleep.
+A sparkle in the macOS menu bar that counts the AI agents working on your Mac and keeps it awake until they finish, lid closed included. Then macOS sleeps on its own schedule again.
 
 ## In short
 
-- The dot shows how many agents are working right now. Filled means the Mac is kept awake.
-- Click the dot to turn Until on or off. Right-click for the menu with every agent process.
-- Detection covers agent CLIs, agents inside editors and apps, and local model runtimes.
+- The sparkle shows how many agents are working right now. Dimmed means Until is off or paused.
+- Right-click for the controls: on or off, every agent named after its task, keep awake for a while, lid closed.
+- Left-click for settings: startup, notifications, battery limit, heat, which agents to watch.
 - Two editions from one codebase: App Store (sandboxed) and Direct (Developer ID).
 
 ## Build
@@ -36,9 +36,9 @@ Set your team under Signing and Capabilities before archiving. Version and bundl
 | --- | --- | --- |
 | Agent detection | Yes | Yes |
 | Stay awake with lid closed | Yes, through IOKit, no password | Yes, through IOKit, no password |
-| Lid closed while the charger is plugged in or out | Not guaranteed on Apple Silicon | Yes, with the sleep helper |
-| Sleep helper (`pmset`, admin password once) | Not allowed by App Review 2.4.5(v) | Optional |
-| Claude Code status files | After the user grants access to `~/.claude` | Automatic |
+| Claude Code status and titles | After the user grants access to `~/.claude` | Automatic |
+
+Plugging the charger in or out with the lid closed can still put some Apple Silicon Macs to sleep. A root `pmset` helper would cover it, but App Review rule 2.4.5(v) forbids root helpers, so Until has none.
 
 ## How detection works
 
@@ -50,7 +50,9 @@ Until scans the process table every 5 seconds and keeps the agents it recognises
 4. Its process tree uses CPU: above 2 % of a core while it streams or runs tools. Idle agents measured 0.1 to 0.8 %.
 5. It runs a tool process started in the last 10 minutes, so a silent `sleep` or network wait counts. Services started with the agent, such as MCP servers, do not.
 
-An agent stays working for a minute after its last signal. After the last agent finishes, Until keeps the Mac awake for the time set in Settings, 2 minutes by default, then releases.
+An agent that reports its own state is released the moment it says it is done. Any other agent stays working for two minutes after its last signal, which covers a model thinking without output. Until only blocks idle system sleep; display sleep and the sleep timers stay with macOS.
+
+Each agent is named after its task. Claude Code sessions use the name set with `/rename`, else the title Claude Code writes for the conversation. Other agents use their project folder.
 
 Apps with built-in agents count while the app holds a sleep assertion for its agent: Cursor and VS Code while their agent runs, Claude while it runs a remote turn. Assertions that only mean "keep awake" are ignored, such as Claude's own keep-awake setting.
 
@@ -67,7 +69,7 @@ An editor, terminal or agent that is merely open never counts.
 ## Safety
 
 - Lid-closed mode disables lid sleep only while Until keeps the Mac awake. A guard process restores it when Until quits or crashes.
-- On battery Until stops at the level you set, 20 % by default, also with the lid closed.
+- On battery Until stops at the level you set, 20% by default, also with the lid closed.
 - Until lets the Mac sleep when it runs hot, earlier with the lid closed.
 
 ## Layout

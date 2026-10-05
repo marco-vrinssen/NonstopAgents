@@ -22,9 +22,9 @@ if CommandLine.arguments.contains("--live") {
         let snapshot = ProcessTable.snapshot()
         var sightings = Agent.find(in: snapshot, agents: Agent.all)
         for i in sightings.indices where sightings[i].agent.id == "claude" {
-            sightings[i].status = ClaudeSessions.status(pid: sightings[i].pid, started: snapshot[sightings[i].pid]?.start ?? 0)
+            sightings[i].status = ClaudeSessions.session(pid: sightings[i].pid, started: snapshot[sightings[i].pid]?.start ?? 0)?.busy
         }
-        let holders = Assertions.holders()
+        let holders = Assertion.holders()
         var working = tracker.update(table: snapshot, sightings: sightings, asserting: Set(holders.keys), now: now)
         let apps = Agent.appsWorking(agents: Agent.all, holders: holders, table: snapshot, counted: working)
         working.formUnion(apps.map(\.pid))
@@ -100,8 +100,8 @@ let agentAt = { (t: TimeInterval, cpuMs: Double) in proc(100, 1, "/x/claude", st
 // Idle at the prompt: 2 ms of CPU per second.
 assert(run([(100, [agentAt(100, 200)]), (105, [agentAt(105, 210)]), (110, [agentAt(110, 220)])]) == [false, false, false])
 
-// Streaming: 100 ms per second, then silent until the quiet timeout passes.
-assert(run([(100, [agentAt(100, 0)]), (105, [agentAt(105, 500)]), (150, [agentAt(150, 501)]), (170, [agentAt(170, 502)])])
+// Streaming: 100 ms per second, then silent until the two-minute quiet timeout passes.
+assert(run([(100, [agentAt(100, 0)]), (105, [agentAt(105, 500)]), (200, [agentAt(200, 501)]), (230, [agentAt(230, 502)])])
        == [false, true, true, false])
 
 // A silent tool (sleep) started mid-turn keeps it working; an MCP server started with the agent does not.
@@ -149,5 +149,36 @@ assert(modelRun == [false, false, true])
 
 // One-shot runs work for as long as they live.
 assert(run([(100, [agentAt(100, 0)])], oneShot: true) == [true])
+
+// Claude Code titles: the user's name beats the AI title, other text that mentions a title is ignored,
+// and lines appended later are picked up.
+let home = FileManager.default.temporaryDirectory.appendingPathComponent("until-check-\(getpid())")
+let project = home.appendingPathComponent("projects/-tmp-my-app")
+try! FileManager.default.createDirectory(at: project, withIntermediateDirectories: true)
+let transcript = project.appendingPathComponent("s1.jsonl")
+try! Data(#"""
+{"type":"user","message":{"content":"make the \\"page-title\\" bigger"}}
+{"type":"ai-title","aiTitle":"Bigger page title","sessionId":"s1"}
+
+"""#.utf8).write(to: transcript)
+ClaudeSessions.folder = home
+let session = ClaudeSessions.Session(id: "s1", cwd: "/tmp/my_app", busy: true)
+func settledTitle() -> String? {
+    _ = ClaudeSessions.title(of: session)
+    RunLoop.main.run(until: Date().addingTimeInterval(0.5))
+    return ClaudeSessions.title(of: session)
+}
+assert(settledTitle() == "Bigger page title")
+let appendLine = { (line: String) in
+    let handle = try! FileHandle(forWritingTo: transcript)
+    handle.seekToEndOfFile()
+    handle.write(Data((line + "\n").utf8))
+    try! handle.close()
+}
+appendLine(#"{"type":"custom-title","customTitle":"Landing page","sessionId":"s1"}"#)
+assert(settledTitle() == "Landing page")
+appendLine(#"{"type":"ai-title","aiTitle":"Something newer","sessionId":"s1"}"#)
+assert(settledTitle() == "Landing page", "a name the user gave stays")
+try? FileManager.default.removeItem(at: home)
 
 print("Checks passed")

@@ -114,25 +114,74 @@ struct Sighting {
     var status: Bool?
 }
 
-/// Claude Code reports each session as busy, waiting or idle in ~/.claude/sessions/<pid>.json.
-/// Not a stable interface, so anything unexpected falls back to the activity heuristic.
+/// Claude Code reports each session as busy, waiting or idle in ~/.claude/sessions/<pid>.json,
+/// and names the conversation in its transcript. Neither is a stable interface, so anything
+/// unexpected falls back to the activity heuristic and the folder name.
 enum ClaudeSessions {
+    struct Session {
+        let id: String
+        let cwd: String
+        /// Busy or not, nil when the status is unknown.
+        let busy: Bool?
+    }
+
     /// The ~/.claude folder; inside the App Sandbox only after the user grants access.
     nonisolated(unsafe) static var folder: URL?
 
-    static func status(pid: pid_t, started: TimeInterval) -> Bool? {
+    static func session(pid: pid_t, started: TimeInterval) -> Session? {
         guard let url = folder?.appendingPathComponent("sessions/\(pid).json"),
               let modified = (try? FileManager.default.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date,
               // A file older than the process belongs to an earlier process with the same pid.
               modified.timeIntervalSince1970 >= started - 2,
               let data = try? Data(contentsOf: url),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              json["pid"] as? Int == Int(pid) else { return nil }
-        switch json["status"] as? String {
-        case "busy": return true
-        case "idle", "waiting": return false
-        default: return nil
+              json["pid"] as? Int == Int(pid),
+              let id = json["sessionId"] as? String else { return nil }
+        let busy: Bool? = switch json["status"] as? String {
+        case "busy": true
+        case "idle", "waiting": false
+        default: nil
         }
+        return Session(id: id, cwd: json["cwd"] as? String ?? "", busy: busy)
+    }
+
+    /// The name the user gave the conversation, else the title Claude Code wrote for it.
+    /// Returns the last known title right away and refreshes it in the background.
+    static func title(of session: Session) -> String? {
+        guard let projects = folder?.appendingPathComponent("projects") else { return nil }
+        // Claude Code names a project folder after its path, every other character a dash.
+        let slug = String(session.cwd.map { $0.isASCII && ($0.isLetter || $0.isNumber) ? $0 : "-" })
+        let transcript = projects.appendingPathComponent("\(slug)/\(session.id).jsonl")
+        titleQueue.async { readTitles(transcript, key: session.id) }
+        return titles[session.id]
+    }
+
+    private static let titleQueue = DispatchQueue(label: "Until.titles", qos: .utility)
+    nonisolated(unsafe) private static var titles: [String: String] = [:]
+    nonisolated(unsafe) private static var progress: [String: (offset: Int, custom: String?, ai: String?)] = [:]
+
+    /// Reads only the part of the transcript written since the last call. Transcripts reach
+    /// tens of megabytes, so the file is memory-mapped and only title lines are parsed.
+    private static func readTitles(_ url: URL, key: String) {
+        guard let data = try? Data(contentsOf: url, options: .alwaysMapped) else { return }
+        var state = progress[key] ?? (0, nil, nil)
+        if data.count < state.offset { state = (0, nil, nil) }
+        guard data.count > state.offset, let end = data[state.offset...].lastIndex(of: 0x0A) else { return }
+
+        var cursor = state.offset
+        while let hit = data.range(of: Data("-title\"".utf8), in: cursor..<end) {
+            let start = (data[..<hit.lowerBound].lastIndex(of: 0x0A) ?? -1) + 1
+            let stop = data[hit.upperBound...].firstIndex(of: 0x0A) ?? end
+            if let line = try? JSONSerialization.jsonObject(with: data[max(start, state.offset)..<stop]) as? [String: Any] {
+                if line["type"] as? String == "custom-title", let t = line["customTitle"] as? String { state.custom = t }
+                if line["type"] as? String == "ai-title", let t = line["aiTitle"] as? String { state.ai = t }
+            }
+            cursor = stop
+        }
+        state.offset = end + 1
+        progress[key] = state
+        let title = (state.custom ?? state.ai)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        DispatchQueue.main.async { titles[key] = title?.isEmpty == false ? title : nil }
     }
 }
 
@@ -141,7 +190,8 @@ enum ClaudeSessions {
 ///
 /// Measured on Apple Silicon: an agent idling at its prompt uses 0.1 to 0.8 % of a core,
 /// an agent streaming a reply or running tools uses 2 to 30 %. Long silent waits on the
-/// model are covered by `quietAfter`, silent tool runs by `toolWindow`.
+/// model are covered by `quietAfter`, silent tool runs by `toolWindow`. Agents that report
+/// their own status are released the moment they say they are done.
 final class Tracker {
     /// Share of one core above which an agent tree counts as busy.
     var cpuThreshold = 0.02
@@ -154,7 +204,7 @@ final class Tracker {
     /// Startup work (loading, connecting MCP servers) is not agent work.
     var warmup: TimeInterval = 30
     /// An agent stays working this long after its last sign of work.
-    var quietAfter: TimeInterval = 60
+    var quietAfter: TimeInterval = 120
 
     private var previous: [pid_t: (start: TimeInterval, cpu: UInt64)] = [:]
     private var lastSample: TimeInterval?
