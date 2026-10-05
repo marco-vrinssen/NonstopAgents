@@ -99,9 +99,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private var menuSignature: String {
-        model.stateTitle + model.summary + "\(model.manualChoice ?? -1)\(model.manualRemaining ?? "")\(model.lidMode)"
+        model.stateTitle + model.summary + "\(model.manualChoice ?? -1)\(model.manualRemaining ?? "")\(model.lidMode)\(model.lidUnavailable)"
             + model.runs.map { "\($0.id)\($0.working)\($0.title)\(model.ignored.contains($0.id))" }.joined()
     }
+
+    /// Agents shown in the menu itself; the rest go into a submenu, which macOS scrolls when long.
+    private static let visibleAgents = 10
 
     private func build() {
         menu.removeAllItems()
@@ -114,9 +117,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // macOS 27 hides menu item images unless asked; this one is the state.
         if #available(macOS 27, *) { power.preferredImageVisibility = .visible }
         menu.addItem(power)
-        let lid = action("Stay awake with lid closed", #selector(toggleLid))
-        lid.state = model.lidMode ? .on : .off
-        menu.addItem(lid)
         menu.addItem(.separator())
 
         if model.runs.isEmpty {
@@ -125,22 +125,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             menu.addItem(none)
         } else {
             menu.addItem(.sectionHeader(title: "Agents"))
-            for run in model.runs { menu.addItem(agentItem(run)) }
+            for run in model.runs.prefix(Self.visibleAgents) { menu.addItem(agentItem(run)) }
+            let rest = model.runs.dropFirst(Self.visibleAgents)
+            if !rest.isEmpty {
+                let more = NSMenuItem(title: "\(rest.count) more", action: nil, keyEquivalent: "")
+                more.submenu = NSMenu()
+                for run in rest { more.submenu?.addItem(agentItem(run)) }
+                menu.addItem(more)
+            }
         }
         menu.addItem(.separator())
 
-        // Durations sit in the menu itself: a submenu would add the hover delay of submenus.
-        // The active one is checked; choosing it again stops it.
-        menu.addItem(.sectionHeader(title: "Keep awake"))
+        // Timed keep-awake in a submenu; the running choice is checked, choosing it again stops it.
+        let awake = NSMenuItem(title: "Stay awake", action: nil, keyEquivalent: "")
+        awake.subtitle = model.manualRemaining.map { "\($0) left" }
+        awake.submenu = NSMenu()
         for (title, minutes) in [("15 minutes", 15), ("30 minutes", 30), ("1 hour", 60), ("2 hours", 120), ("4 hours", 240), ("Until I turn it off", 0)] {
+            if minutes == 0 { awake.submenu?.addItem(.separator()) }
             let entry = action(title, #selector(keepAwake(_:)))
             entry.tag = minutes
-            if model.manualChoice == minutes {
-                entry.state = .on
-                entry.subtitle = model.manualRemaining.map { "\($0) left" }
-            }
-            menu.addItem(entry)
+            entry.state = model.manualChoice == minutes ? .on : .off
+            awake.submenu?.addItem(entry)
         }
+        menu.addItem(awake)
+        let lid = action("Stay awake when lid is closed", #selector(toggleLid))
+        lid.state = model.lidMode ? .on : .off
+        lid.subtitle = model.lidUnavailable ? "Not available on this Mac" : nil
+        menu.addItem(lid)
         menu.addItem(.separator())
 
         menu.addItem(action("About Until", #selector(showAbout)))
@@ -205,10 +216,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         present { self.settings }
     }
 
-    /// The standard macOS About window, without the app icon.
+    /// The standard macOS About window.
     @objc private func showAbout() {
         present {
-            NSApp.orderFrontStandardAboutPanel(options: [.applicationIcon: NSImage(size: .zero)])
+            NSApp.orderFrontStandardAboutPanel(nil)
             return NSApp.windows.first { $0.isVisible && $0.level == .normal && $0 !== self.settings }
         }
     }

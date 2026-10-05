@@ -49,7 +49,7 @@ enum Status: Equatable {
 final class Model {
     // Settings, persisted in UserDefaults.
     var enabled = Model.load("enabled", true) { didSet { save("enabled", enabled); tick() } }
-    var lidMode = Model.load("lidMode", false) { didSet { save("lidMode", lidMode); tick() } }
+    var lidMode = Model.load("lidMode", false) { didSet { save("lidMode", lidMode); lidUnavailable = false; tick() } }
     var batteryFloor = min(50, Model.load("batteryFloor", 20)) { didSet { save("batteryFloor", batteryFloor); tick() } }
     var thermalGuard = Model.load("thermalGuard", true) { didSet { save("thermalGuard", thermalGuard); tick() } }
     var notificationsEnabled = Model.load("notificationsEnabled", true) { didSet { save("notificationsEnabled", notificationsEnabled); requestNotifications() } }
@@ -68,6 +68,8 @@ final class Model {
     private(set) var manualChoice: Int?
     /// macOS has notifications for Until turned off.
     private(set) var notificationsDenied = false
+    /// macOS refused the lid setting; retried only when lid mode is turned on again.
+    private(set) var lidUnavailable = false
     private(set) var ignored: Set<pid_t> = []
     private(set) var loginItem = SMAppService.mainApp.status == .enabled
     private(set) var claudeAccess = false
@@ -88,10 +90,15 @@ final class Model {
     init() {
         openClaudeFolder()
         restoreAfterCrash()
-        lidGuard.onExit = { [weak self] _ in
-            // The guard died on its own; put lid sleep back and let the next tick retry.
+        lidGuard.onExit = { [weak self] status in
+            // The guard died on its own; put lid sleep back. A failing status means macOS refused
+            // the setting, so stop starting new guards until lid mode is turned on again.
             Clamshell.setSleepDisabled(false).release()
             self?.lidHeld = false
+            if status != 0 {
+                self?.lidUnavailable = true
+                log.error("Lid closed mode unavailable, guard exited with \(status)")
+            }
         }
         let timer = Timer(timeInterval: 5, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.rescan() }
@@ -165,6 +172,8 @@ final class Model {
     func rescan() {
         let now = Date()
         let table = ProcessTable.snapshot()
+        // A failed read is not "no agents": keep the last state rather than let the Mac sleep.
+        guard !table.isEmpty else { return }
         let agents = Agent.all.filter { !disabledAgents.contains($0.id) } + customAgents.map(Agent.custom)
         var sightings = Agent.find(in: table, agents: agents)
         var sessions: [pid_t: ClaudeSessions.Session] = [:]
@@ -195,6 +204,7 @@ final class Model {
         }
         known = next
         ignored.formIntersection(next.keys)
+        ClaudeSessions.forget(except: Set(sessions.values.map(\.id)))
         runs = next.values.sorted { ($0.working ? 0 : 1, $0.started) < ($1.working ? 0 : 1, $1.started) }
         tick()
     }
@@ -278,7 +288,7 @@ final class Model {
     // MARK: Lid
 
     private func holdLid() {
-        guard !lidGuard.isRunning, let executable = Bundle.main.executablePath else { return }
+        guard !lidGuard.isRunning, !lidUnavailable, let executable = Bundle.main.executablePath else { return }
         lidHeld = lidGuard.start(executable, ["--lid-guard"])
         UserDefaults.standard.set(lidHeld, forKey: "lidGuardActive")
     }

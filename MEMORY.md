@@ -14,6 +14,8 @@ Until is a macOS menu bar app that counts working AI agents and keeps the Mac aw
 - Settings hold only lasting options (General: Login, Notifications, Sleep exceptions; Agents). Turning off the heat exception needs a confirmation. About is the standard About window from the menu, without the app icon (leaves a blank area where the icon was). Controls live in the menu. Until is purely a background menu bar app: no Dock icon, also while settings are open (Marco, 2026-10-05). No settings that change macOS sleep behavior beyond holding idle sleep: display sleep and sleep timers stay with macOS.
 - No root `pmset` sleep helper: App Review 2.4.5(v) forbids it, and Marco asked to remove it on 2026-10-05.
 - Agents are named after their task. Claude Code: `/rename` name, else the AI title from the transcript (`custom-title`, `ai-title` lines). Others: project folder.
+- Menu (Marco, 2026-10-05): switch, up to 10 agents plus an "N more" submenu, "Stay awake" submenu with durations, "Stay awake when lid is closed" below it, then About, Settings, Quit.
+- App icon: Marco's draft (Figma file Cortex, `CZUqHSefnCRdBARhtro1xS`, node `1193:278`) was too close to the Artificial Analysis logo. Three concepts in the draft's colors and grid are in `Design/Icon`; the hourglass is in the app until Marco picks one. macOS 27 adds glass effects to a flat icon by itself.
 - Stock behavior over custom: no tab or window animations. The only forced bits are the status dot's image visibility and ordering the settings window to the front.
 
 ## Build
