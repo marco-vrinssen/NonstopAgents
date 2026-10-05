@@ -4,9 +4,9 @@ A sparkle in the macOS menu bar that counts the AI agents working on your Mac an
 
 ## In short
 
-- The sparkle shows how many agents are working right now. Dimmed means Until is off or paused.
+- The menu bar shows the number of working agents, the sparkle, and the time left on a timed keep-awake. Dimmed means Until is off or paused.
 - Click the sparkle to turn Until on or off.
-- Right-click for the menu: the current state, every agent named after its task, keep awake for a while, lid closed, settings.
+- Right-click for the menu: the current state, lid closed, every agent named after its task, keep awake for a while, settings.
 - Two editions from one codebase: App Store (sandboxed) and Direct (Developer ID).
 
 ## Build

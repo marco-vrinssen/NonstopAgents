@@ -27,9 +27,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             button.target = self
             button.action = #selector(clicked)
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
-            button.imagePosition = .imageLeading
-            // SF Mono, so the count keeps its width as it changes.
-            button.font = .monospacedSystemFont(ofSize: NSFont.menuBarFont(ofSize: 0).pointSize, weight: .regular)
         }
         menu.delegate = self
         menu.autoenablesItems = false
@@ -61,14 +58,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func refresh() {
         guard let button = item?.button else { return }
-        let count = model.workingCount
         let label = "\(model.stateTitle). \(model.summary)."
-        button.image = NSImage(systemSymbolName: "sparkle", accessibilityDescription: "Until")
-        button.title = count > 0 ? String(count) : ""
-        button.appearsDisabled = model.isPaused
+        button.attributedTitle = statusTitle()
         button.toolTip = label
         button.setAccessibilityLabel(label)
         if menuOpen, shownMenu != menuSignature { build() }
+    }
+
+    /// The working count, the sparkle and the time left on a timed keep-awake, in that order.
+    /// Text is SF Mono so its width holds as it changes; the menu bar colors it.
+    private func statusTitle() -> NSAttributedString {
+        var style: [NSAttributedString.Key: Any] = [
+            .font: NSFont.monospacedSystemFont(ofSize: NSFont.menuBarFont(ofSize: 0).pointSize, weight: .regular),
+        ]
+        // A text title ignores the disabled appearance, so off and paused dim through the color.
+        if model.isPaused { style[.foregroundColor] = NSColor.secondaryLabelColor }
+
+        let spark = NSTextAttachment()
+        spark.image = NSImage(systemSymbolName: "sparkle", accessibilityDescription: "Until")
+        let title = NSMutableAttributedString(attachment: spark)
+        title.addAttributes(style, range: NSRange(location: 0, length: title.length))
+        if model.workingCount > 0 {
+            title.insert(NSAttributedString(string: "\(model.workingCount) ", attributes: style), at: 0)
+        }
+        if let left = model.manualRemaining {
+            title.append(NSAttributedString(string: " \(left)", attributes: style))
+        }
+        return title
     }
 
     // MARK: Menu
@@ -83,7 +99,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private var menuSignature: String {
-        model.stateTitle + model.summary + "\(model.manualUntil != nil)\(model.lidMode)"
+        model.stateTitle + model.summary + "\(model.manualChoice ?? -1)\(model.manualRemaining ?? "")\(model.lidMode)"
             + model.runs.map { "\($0.id)\($0.working)\($0.title)\(model.ignored.contains($0.id))" }.joined()
     }
 
@@ -98,6 +114,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // macOS 27 hides menu item images unless asked; this one is the state.
         if #available(macOS 27, *) { power.preferredImageVisibility = .visible }
         menu.addItem(power)
+        let lid = action("Stay awake with lid closed", #selector(toggleLid))
+        lid.state = model.lidMode ? .on : .off
+        menu.addItem(lid)
         menu.addItem(.separator())
 
         if model.runs.isEmpty {
@@ -110,24 +129,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         menu.addItem(.separator())
 
-        if model.manualUntil != nil {
-            menu.addItem(action("Stop keeping awake", #selector(stopKeepingAwake)))
-        } else {
-            let awake = NSMenuItem(title: "Keep awake for", action: nil, keyEquivalent: "")
-            let durations = NSMenu()
-            for (title, minutes) in [("15 minutes", 15), ("30 minutes", 30), ("1 hour", 60), ("2 hours", 120), ("4 hours", 240)] {
-                let entry = action(title, #selector(keepAwake(_:)))
-                entry.tag = minutes
-                durations.addItem(entry)
+        // Durations sit in the menu itself: a submenu would add the hover delay of submenus.
+        // The active one is checked; choosing it again stops it.
+        menu.addItem(.sectionHeader(title: "Keep awake"))
+        for (title, minutes) in [("15 minutes", 15), ("30 minutes", 30), ("1 hour", 60), ("2 hours", 120), ("4 hours", 240), ("Until I turn it off", 0)] {
+            let entry = action(title, #selector(keepAwake(_:)))
+            entry.tag = minutes
+            if model.manualChoice == minutes {
+                entry.state = .on
+                entry.subtitle = model.manualRemaining.map { "\($0) left" }
             }
-            durations.addItem(.separator())
-            durations.addItem(action("Until I turn it off", #selector(keepAwake(_:))))
-            awake.submenu = durations
-            menu.addItem(awake)
+            menu.addItem(entry)
         }
-        let lid = action("Stay awake with lid closed", #selector(toggleLid))
-        lid.state = model.lidMode ? .on : .off
-        menu.addItem(lid)
         menu.addItem(.separator())
 
         menu.addItem(action("About Until", #selector(showAbout)))
@@ -170,8 +183,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func togglePower() { model.toggle() }
-    @objc private func keepAwake(_ sender: NSMenuItem) { model.keepAwake(minutes: sender.tag == 0 ? nil : sender.tag) }
-    @objc private func stopKeepingAwake() { model.stopKeepingAwake() }
+    @objc private func keepAwake(_ sender: NSMenuItem) {
+        if model.manualChoice == sender.tag { model.stopKeepingAwake() } else { model.keepAwake(minutes: sender.tag) }
+    }
     @objc private func toggleLid() { model.lidMode.toggle() }
 
     @objc private func toggleIgnore(_ sender: NSMenuItem) {
@@ -191,10 +205,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         present { self.settings }
     }
 
-    /// The standard macOS About window.
+    /// The standard macOS About window, without the app icon.
     @objc private func showAbout() {
         present {
-            NSApp.orderFrontStandardAboutPanel(nil)
+            NSApp.orderFrontStandardAboutPanel(options: [.applicationIcon: NSImage(size: .zero)])
             return NSApp.windows.first { $0.isVisible && $0.level == .normal && $0 !== self.settings }
         }
     }

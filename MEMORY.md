@@ -9,9 +9,9 @@ Until is a macOS menu bar app that counts working AI agents and keeps the Mac aw
 ## Decisions
 
 - Pure native macOS components only, no custom styling. Marco dropped the Linear-based design on 2026-10-04. `DESIGN.md` describes what is used.
-- Menu bar: `sparkle` SF Symbol plus the working count in SF Mono. A size configuration on SF Symbols makes the status bar crop them, so there is none.
+- Menu bar: one attributed title, count then `sparkle` (text attachment) then time left on a timed keep-awake, SF Mono. A size configuration on SF Symbols in a status item image crops them. A text title ignores `appearsDisabled`, so off and paused use the secondary label color.
 - Left click turns Until on or off, right-click opens the menu, Settings opens from the menu (Marco, 2026-10-05). The first menu item shows the state with a stock status dot (green on, yellow paused, gray off) and also toggles.
-- Settings hold only lasting options (General, Agents). About is the standard About window from the menu. Controls live in the menu. Until is purely a background menu bar app: no Dock icon, also while settings are open (Marco, 2026-10-05). No settings that change macOS sleep behavior beyond holding idle sleep: display sleep and sleep timers stay with macOS.
+- Settings hold only lasting options (General: Login, Notifications, Sleep exceptions; Agents). Turning off the heat exception needs a confirmation. About is the standard About window from the menu, without the app icon (leaves a blank area where the icon was). Controls live in the menu. Until is purely a background menu bar app: no Dock icon, also while settings are open (Marco, 2026-10-05). No settings that change macOS sleep behavior beyond holding idle sleep: display sleep and sleep timers stay with macOS.
 - No root `pmset` sleep helper: App Review 2.4.5(v) forbids it, and Marco asked to remove it on 2026-10-05.
 - Agents are named after their task. Claude Code: `/rename` name, else the AI title from the transcript (`custom-title`, `ai-title` lines). Others: project folder.
 - Stock behavior over custom: no tab or window animations. The only forced bits are the status dot's image visibility and ordering the settings window to the front.
@@ -32,6 +32,8 @@ Lid closed uses `kPMSetClamshellSleepState` (Amphetamine's method) in a `--lid-g
 
 ## Testing
 
+- macOS reported notifications for the Direct edition as denied on 2026-10-05; the settings show a link to System Settings.
+- A menu item with a subtitle has the accessibility name "title, subtitle", which matters when scripting the menu.
 - Marco is often at the Mac. Prefer `screencapture -l <window id>` and accessibility actions over synthetic mouse clicks; moving the mouse during a synthetic click makes it miss.
 - `./build.sh check` runs the self-check, `./build.sh check --live` prints this Mac's agents every 5 seconds.
 - Push with `env -u GITHUB_TOKEN git push` so a read-only token in the shell can't shadow the keyring login.
