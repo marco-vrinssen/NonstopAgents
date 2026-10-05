@@ -60,6 +60,8 @@ Until stays a menu bar app while settings are open: no Dock icon and no Command-
 
 ## App icon
 
-Plum `#371236` on lavender `#C399FF`, the colors of the first draft. The mark is built like the draft: thick bars, 45° cuts and squares on a unit grid. Three concepts are in `Design/Icon` as SVG and PNG; the hourglass is in the app for now.
+An hourglass in plum `#371236` on lavender `#C399FF`: two full-width bars and two flat funnels in a 500 pt square, centered on a 1024 pt canvas. Marco simplified it in Figma (Cortex, frame `1196:3`).
 
-The app ships a flat icon in the asset catalog. macOS 27 renders it with glass effects on its own (rim light on the plate, recessed shading on the mark), see `Design/Icon/preview-macos27.png`. Layered variants for dark, clear and tinted appearances need Icon Composer, which comes with Xcode.
+- `Design/Icon/AppIcon.svg` is the source: the full-bleed Figma export, with the mark as one path so its parts render without seams.
+- `./build.sh icon` renders it into the asset catalog on the macOS icon grid, an 824 pt rounded square inside 1024 pt, at every size.
+- macOS 27 adds glass effects to this flat icon on its own. Layered variants for dark, clear and tinted appearances need an Icon Composer file, made in Xcode.

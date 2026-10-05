@@ -20,6 +20,7 @@ Xcode is not required. The Command Line Tools build and sign a runnable app.
 | `./build.sh appstore` | Sandboxed App Store edition at `build/AppStore/Until.app` |
 | `./build.sh check` | Runs the detection self-check |
 | `./build.sh check --live` | Prints this Mac's agents and their state every 5 seconds |
+| `./build.sh icon` | Renders `Design/Icon/AppIcon.svg` into the app icon set |
 
 Builds are universal (Apple Silicon and Intel), need macOS 15 or later, and are signed ad hoc. For distribution, open `Until.xcodeproj` in Xcode 26 or later and pick a scheme:
 
