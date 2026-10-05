@@ -23,7 +23,7 @@ The status item shows the `sparkle` SF Symbol exactly as macOS provides it, so t
 | On, agents working | Sparkle and the count |
 | Off, or paused for battery or heat | The same, with the disabled appearance |
 
-- Left click opens settings. Right-click or control-click opens the menu with the controls.
+- Left click turns Until on or off. Right-click or control-click opens the menu, which also opens settings.
 - The tooltip and accessibility label read the state and summary, such as "Until is on. 2 agents working, Mac stays awake."
 
 ## Menu
