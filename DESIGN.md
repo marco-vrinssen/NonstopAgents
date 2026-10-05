@@ -3,7 +3,7 @@
 ## In short
 
 - Until is a pure native macOS app. Every element is a system component, an SF Symbol or a system color.
-- The menu bar presence is one SF Symbol: a circle that shows the number of working agents.
+- The menu bar presence is the `sparkle` SF Symbol with the number of working agents next to it in SF Mono.
 - No custom colors, fonts, views or styling. Appearance, accent color, contrast and accessibility come from macOS.
 
 ## Principles
@@ -15,44 +15,44 @@
 
 ## Menu bar
 
-The status item shows the SF Symbol exactly as macOS provides it, with no size, weight or color configuration, so the menu bar sizes and tints it like its own icons. The numbered circle symbols cut the digit out of the fill. A size configuration makes the status bar crop the circle, so there is none.
+The status item shows the `sparkle` SF Symbol exactly as macOS provides it, so the menu bar sizes and tints it like its own icons. While agents work, their number follows it in SF Mono at the menu bar's font size, so the width does not jitter as the count changes.
 
-| State | Symbol | Meaning |
-| --- | --- | --- |
-| Idle | `circle` | Until is on, no agent works, the Mac sleeps as usual |
-| Working | `1.circle.fill` to `50.circle.fill` | Agents work, the Mac is kept awake |
-| Many agents | `ellipsis.circle.fill` | More than 50 agents work |
-| Holding | `circle.fill` | Agents just finished, or a manual keep-awake runs |
-| Off or paused | `circle` or `2.circle`, disabled appearance | Until is off, or paused for battery or heat |
-| Failed | `exclamationmark.circle` | macOS declined to keep the Mac awake |
+| State | Shows |
+| --- | --- |
+| On, no agent working | Sparkle |
+| On, agents working | Sparkle and the count |
+| Off, or paused for battery or heat | The same, with the disabled appearance |
 
-- Left click turns Until on or off. Right-click or control-click opens the menu. Settings can swap the two.
-- The tooltip and accessibility label read the status line, such as "Until: 2 agents working. Your Mac stays awake."
+- Left click opens settings. Right-click or control-click opens the menu with the controls.
+- The tooltip and accessibility label read the state and summary, such as "Until is on. 2 agents working, Mac stays awake."
 
 ## Menu
 
 A standard NSMenu, top to bottom:
 
-1. Status: a disabled item with the headline as title and the detail as subtitle.
-2. Agents: a section header, then one item per agent process, working ones first. Title is the tool, subtitle is folder, host app and working or quiet. No item images: macOS 27 hides them by default. Each agent has a submenu to stop keeping awake for it, show its folder and see its process.
+1. The switch: "Until is on", "Until is off" or "Until is paused", with a one-line summary as subtitle. A stock AppKit status image shows the state: green when on, yellow when paused, gray when off. Clicking it turns Until on or off. Its image is forced visible, since macOS 27 hides menu item images by default.
+2. Agents: a section header, then one item per agent process, working ones first. The title is the task: a Claude Code conversation title, else the project folder, else the tool. The subtitle is tool, folder and working or quiet. Each agent has a submenu to stop keeping awake for it, show its folder and see its process and host app.
 3. Actions: "Keep awake for" with durations, "Stay awake with lid closed" as a checkmark item.
-4. Control: "Turn Until off" with the subtitle "Or click the dot".
-5. App: "About Until" (the standard about panel), "Settings…" with Command-comma, "Quit Until" with Command-Q.
+4. App: "Settings…" with Command-comma, "Quit Until" with Command-Q.
 
 ## Settings
 
-A standard settings window: NSTabViewController with toolbar tabs and the preference toolbar style. The window title follows the selected tab, and the window takes each tab's height with the tab view controller's stock behavior. Until asks to activate after its menu closes and orders the window to the front. Whether it also takes keyboard focus is macOS's decision; otherwise one click focuses it.
+A standard settings window: NSTabViewController with toolbar tabs and the preference toolbar style. The window title follows the selected tab, and the window takes each tab's height with the tab view controller's stock behavior. Until asks to activate after the click and orders the window to the front. Whether it also takes keyboard focus is macOS's decision; otherwise one click focuses it.
+
+Settings hold only lasting options. Everything used day to day is in the menu.
 
 | Tab | Symbol | Contents |
 | --- | --- | --- |
-| General | `gearshape` | On or off, open at login, left click, notifications |
-| Power | `bolt` | Time after agents finish, display, lid closed, battery, heat |
+| General | `gearshape` | Open at login, notifications, battery limit, heat |
 | Agents | `sparkles` | A toggle per agent, apps, local models, other processes |
+| About | `info.circle` | Icon, name, version, copyright |
 
-- Each tab is one SwiftUI grouped Form. Every section has a header, which also sets the space between sections.
+While settings are open Until is a regular app: it shows in the Dock and in Command-Tab, with the standard app, File, Edit and Window menus. Closing settings returns it to the menu bar only.
+
+- General and Agents are SwiftUI grouped Forms. Every section has a header, which also sets the space between sections. About is a centered stack like the standard about panel.
 - Section footers are plain text, so the form styles them as secondary notes.
 - Controls are system toggles, pickers, buttons and text fields, unstyled, in the user's accent color.
 
 ## App icon
 
-A dark rounded square with a white dot, the menu bar circle at app icon size.
+A dark rounded square with a white dot.

@@ -7,19 +7,19 @@ import SwiftUI
 @Observable
 final class SettingsDraft {
     var newName = ""
-    var helperMessage: String?
 }
 
 /// The settings window: toolbar tabs, the native macOS settings layout, one grouped form per tab.
-/// The window takes each tab's height, so short tabs do not scroll.
+/// Only lasting options live here; the controls are in the menu bar menu.
 @MainActor
 enum SettingsWindow {
+    static let aboutTab = 2
+
     static func make(model: Model) -> NSWindow {
-        let draft = SettingsDraft()
         let panes: [(String, String, AnyView)] = [
             ("General", "gearshape", AnyView(GeneralPane(model: model))),
-            ("Power", "bolt", AnyView(PowerPane(model: model, draft: draft))),
-            ("Agents", "sparkles", AnyView(AgentsPane(model: model, draft: draft))),
+            ("Agents", "sparkles", AnyView(AgentsPane(model: model, draft: SettingsDraft()))),
+            ("About", "info.circle", AnyView(AboutPane())),
         ]
         let tabs = NSTabViewController()
         tabs.tabStyle = .toolbar
@@ -47,13 +47,8 @@ private struct GeneralPane: View {
 
     var body: some View {
         Form {
-            Section("Until") {
-                Toggle("Keep the Mac awake while agents work", isOn: $model.enabled)
+            Section("Startup") {
                 Toggle("Open at login", isOn: Binding(get: { model.loginItem }, set: model.setLoginItem))
-                Picker("Left click", selection: $model.leftClickShowsMenu) {
-                    Text("Turns Until on or off").tag(false)
-                    Text("Opens the menu").tag(true)
-                }
             }
 
             Section {
@@ -63,68 +58,18 @@ private struct GeneralPane: View {
             } footer: {
                 Text("When agents finish while you are away from the Mac, and when Until pauses for battery.")
             }
-        }
-        .pane()
-    }
-}
-
-private struct PowerPane: View {
-    @Bindable var model: Model
-    @Bindable var draft: SettingsDraft
-
-    var body: some View {
-        Form {
-            Section {
-                Picker("After agents finish", selection: $model.holdMinutes) {
-                    Text("Sleep right away").tag(0)
-                    ForEach([1, 2, 5, 10], id: \.self) { Text("Stay awake \($0) min").tag($0) }
-                }
-                Toggle("Keep the display on", isOn: $model.keepDisplayOn)
-            } header: {
-                Text("Staying awake")
-            } footer: {
-                Text("An agent counts as finished after a minute without activity. The extra time covers long pauses while a model thinks.")
-            }
-
-            Section {
-                Toggle("Stay awake with the lid closed", isOn: $model.lidMode)
-                #if !APPSTORE
-                Toggle("Also when the charger is plugged in or out", isOn: $model.chargerProof)
-                    .disabled(!SleepGuard.isInstalled || !model.lidMode)
-                LabeledContent {
-                    Button(SleepGuard.isInstalled ? "Remove" : "Install…") {
-                        draft.helperMessage = SleepGuard.isInstalled ? model.uninstallSleepGuard() : model.installSleepGuard()
-                    }
-                } label: {
-                    Text("Sleep helper")
-                    Text(draft.helperMessage ?? (model.sleepGuardFailed ? "Could not start, reinstall it"
-                        : SleepGuard.isInstalled ? "Installed" : "Asks for your admin password once"))
-                }
-                #endif
-            } header: {
-                Text("Lid closed")
-            } footer: {
-                #if APPSTORE
-                Text("Until disables lid sleep only while it keeps the Mac awake and hands it back when agents finish. Plugging the charger in or out with the lid closed can still put some Macs to sleep.")
-                #else
-                Text("Until disables lid sleep only while it keeps the Mac awake and hands it back when agents finish. The sleep helper also covers plugging the charger in or out with the lid closed.")
-                #endif
-            }
 
             Section {
                 Picker("On battery, stop at", selection: $model.batteryFloor) {
                     ForEach(Array(stride(from: 5, through: 50, by: 5)), id: \.self) { Text("\($0)%").tag($0) }
                     Text("Never stay awake on battery").tag(100)
                 }
+                Toggle("Let the Mac sleep when it gets hot", isOn: $model.thermalGuard)
             } header: {
-                Text("Battery")
+                Text("Power")
             } footer: {
                 Text(model.battery.level.map { "Now at \($0)%. At or below the limit Until lets the Mac sleep, also with the lid closed." }
                      ?? "This Mac has no battery.")
-            }
-
-            Section("Heat") {
-                Toggle("Let the Mac sleep when it gets hot", isOn: $model.thermalGuard)
             }
         }
         .pane()
@@ -157,7 +102,7 @@ private struct AgentsPane: View {
             } header: {
                 Text("Claude Code")
             } footer: {
-                Text("Claude Code reports whether each session is busy or waiting for you in the .claude folder. Reading it keeps the count exact while a model thinks for minutes.")
+                Text("Claude Code keeps each session's state and title in the .claude folder. Reading it keeps the count exact and names each session after its conversation.")
             }
             #endif
 
@@ -207,6 +152,32 @@ private struct AgentsPane: View {
         guard !name.isEmpty, !model.customAgents.contains(name) else { return }
         model.customAgents.append(name)
         draft.newName = ""
+    }
+}
+
+private struct AboutPane: View {
+    private let info = Bundle.main.infoDictionary ?? [:]
+
+    var body: some View {
+        VStack(spacing: 8) {
+            Image(nsImage: NSApp.applicationIconImage)
+                .resizable()
+                .frame(width: 96, height: 96)
+            Text("Until")
+                .font(.title2)
+            Text("Version \(info["CFBundleShortVersionString"] as? String ?? "") (\(info["CFBundleVersion"] as? String ?? ""))")
+                .foregroundStyle(.secondary)
+            Text("Keeps your Mac awake while AI agents work, and lets it sleep when they are done.")
+                .multilineTextAlignment(.center)
+                .padding(.top, 8)
+            Text(info["NSHumanReadableCopyright"] as? String ?? "")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .padding(.top, 8)
+        }
+        .padding(32)
+        .frame(width: 500)
+        .fixedSize(horizontal: false, vertical: true)
     }
 }
 
