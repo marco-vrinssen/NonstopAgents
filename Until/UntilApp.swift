@@ -216,10 +216,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         present { self.settings }
     }
 
-    /// The standard macOS About window.
+    /// The standard macOS About window, given the app's own icon file: at runtime macOS offers a
+    /// single 256 px rendition, which blurs when scaled to About's 64 pt; the file has every size.
     @objc private func showAbout() {
         present {
-            NSApp.orderFrontStandardAboutPanel(nil)
+            let icon = Bundle.main.url(forResource: "AppIcon", withExtension: "icns").flatMap(NSImage.init(contentsOf:))
+            NSApp.orderFrontStandardAboutPanel(options: icon.map { [.applicationIcon: $0] } ?? [:])
             return NSApp.windows.first { $0.isVisible && $0.level == .normal && $0 !== self.settings }
         }
     }

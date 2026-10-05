@@ -11,7 +11,7 @@ Until is a macOS menu bar app that counts working AI agents and keeps the Mac aw
 - Pure native macOS components only, no custom styling. Marco dropped the Linear-based design on 2026-10-04. `DESIGN.md` describes what is used.
 - Menu bar: one attributed title, count then `sparkle` (text attachment) then time left on a timed keep-awake, SF Mono. A size configuration on SF Symbols in a status item image crops them. A text title ignores `appearsDisabled`, so off and paused use the secondary label color.
 - Left click turns Until on or off, right-click opens the menu, Settings opens from the menu (Marco, 2026-10-05). The first menu item shows the state with a stock status dot (green on, yellow paused, gray off) and also toggles.
-- Settings hold only lasting options (General: Login, Notifications, Sleep exceptions; Agents). Turning off the heat exception needs a confirmation. About is the standard About window from the menu, without the app icon (leaves a blank area where the icon was). Controls live in the menu. Until is purely a background menu bar app: no Dock icon, also while settings are open (Marco, 2026-10-05). No settings that change macOS sleep behavior beyond holding idle sleep: display sleep and sleep timers stay with macOS.
+- Settings hold only lasting options (General: Login, Notifications, Sleep exceptions; Agents). Turning off the heat exception needs a confirmation. About is the standard About window from the menu, given `AppIcon.icns` because the runtime icon is a single 256 px rendition that blurs at 1x. Controls live in the menu. Until is purely a background menu bar app: no Dock icon, also while settings are open (Marco, 2026-10-05). No settings that change macOS sleep behavior beyond holding idle sleep: display sleep and sleep timers stay with macOS.
 - No root `pmset` sleep helper: App Review 2.4.5(v) forbids it, and Marco asked to remove it on 2026-10-05.
 - Agents are named after their task. Claude Code: `/rename` name, else the AI title from the transcript (`custom-title`, `ai-title` lines). Others: project folder.
 - Menu (Marco, 2026-10-05): switch, up to 10 agents plus an "N more" submenu, "Stay awake" submenu with durations, "Stay awake when lid is closed" below it, then About, Settings, Quit.
@@ -44,4 +44,5 @@ Lid closed uses `kPMSetClamshellSleepState` (Amphetamine's method) in a `--lid-g
 
 - Lid-closed test on battery without an external display, and with the charger plugged in or out.
 - Xcode build of both schemes, then App Store Connect: bundle id, Icon Composer icon, review notes on reading the user's own processes.
+- macOS 27 shows the icon on a gray plate at 16 and 32 px (Finder list view, Spotlight), 64 px and up get glass. Seen with and without pixel snapping, cause unknown.
 - Codex threads have titles in `~/.codex/state_5.sqlite`; not used yet because no threads existed to verify against.
