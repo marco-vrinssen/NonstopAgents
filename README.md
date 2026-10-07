@@ -6,7 +6,7 @@ A sparkle in the macOS menu bar that counts the AI agents working on your Mac an
 
 - The menu bar shows a pill with the number of working agents, the sparkle, and the time left on a timed keep-awake cut out of it. Dimmed means Until is off or paused.
 - Click the sparkle to turn Until on or off.
-- Right-click for the menu: the current state, every agent named after its task, stay awake for a while, lid closed, settings.
+- Right-click for the menu: the current state, every agent named after its task, stay awake for a while, lid closed, sleep or shut down when agents finish, settings.
 - Two editions from one codebase: App Store (sandboxed) and Direct (Developer ID).
 
 ## Build
@@ -38,6 +38,7 @@ Set your team under Signing and Capabilities before archiving. Version and bundl
 | Agent detection | Yes | Yes |
 | Stay awake with lid closed | Yes, through IOKit, no password | Yes, through IOKit, no password |
 | Claude Code status and titles | After the user grants access to `~/.claude` | Automatic |
+| Shut down when agents finish | After the user allows it once, through an Apple events exception for loginwindow that App Review must accept | After the user allows it once |
 
 Plugging the charger in or out with the lid closed can still put some Apple Silicon Macs to sleep. A root `pmset` helper would cover it, but App Review rule 2.4.5(v) forbids root helpers, so Until has none.
 
@@ -72,6 +73,7 @@ An editor, terminal or agent that is merely open never counts.
 - Lid-closed mode disables lid sleep only while Until keeps the Mac awake. A guard process restores it when Until quits or crashes.
 - On battery Until stops at the level you set, 20% by default, also with the lid closed.
 - Until lets the Mac sleep when it runs hot, earlier with the lid closed.
+- Sleep right away and Shut down apply once, a minute after the last agent stops. Until holds sleep through that minute. An agent's next step or a Claude Code question for you cancels the countdown. If the Mac sleeps anyway, it stays asleep. An app with unsaved changes can stop a shut down.
 
 ## Layout
 

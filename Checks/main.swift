@@ -181,4 +181,33 @@ appendLine(#"{"type":"ai-title","aiTitle":"Something newer","sessionId":"s1"}"#)
 assert(settledTitle() == "Landing page", "a name the user gave stays")
 try? FileManager.default.removeItem(at: home)
 
+// Finish: acts once, a minute after the last work, and only after work was seen.
+var finish = Finish()
+let t0 = Date(timeIntervalSince1970: 0)
+finish.action = .shutDown
+assert(finish.update(working: false, now: t0) == nil, "armed while nothing works, it waits for work")
+assert(finish.update(working: true, now: t0 + 5) == nil)
+assert(finish.update(working: false, now: t0 + 10) == nil && finish.due == t0 + 70)
+assert(finish.update(working: true, now: t0 + 30) == nil && finish.due == nil, "a next step cancels the countdown")
+assert(finish.update(working: false, now: t0 + 35) == nil)
+assert(finish.update(working: false, now: t0 + 94) == nil)
+assert(finish.update(working: false, now: t0 + 95) == .shutDown)
+assert(finish.action == .asUsual && finish.update(working: true, now: t0 + 100) == nil
+       && finish.update(working: false, now: t0 + 300) == nil, "only once")
+
+// Choosing again or switching to the other action keeps the countdown; disarming ends it.
+finish.action = .sleep
+_ = finish.update(working: true, now: t0 + 400)
+_ = finish.update(working: false, now: t0 + 405)
+finish.action = .sleep
+finish.action = .shutDown
+assert(finish.due == t0 + 465, "the countdown survives choosing again and switching")
+assert(finish.update(working: false, now: t0 + 465) == .shutDown)
+finish.action = .sleep
+_ = finish.update(working: true, now: t0 + 500)
+_ = finish.update(working: false, now: t0 + 505)
+finish.action = .asUsual
+finish.action = .sleep
+assert(finish.due == nil && finish.update(working: false, now: t0 + 600) == nil, "disarming forgets the work seen")
+
 print("Checks passed")

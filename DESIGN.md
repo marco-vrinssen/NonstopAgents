@@ -36,7 +36,8 @@ A standard NSMenu, top to bottom:
 1. The switch: "Until is on", "Until is off" or "Until is paused", with a one-line summary as subtitle and a stock AppKit status image: green on, yellow paused, gray off. Clicking it turns Until on or off. Its image is forced visible, since macOS 27 hides menu item images by default.
 2. Agents: a section header and up to 10 agent items, working ones first. More agents go into an "N more" submenu, which macOS scrolls when it gets long; a menu cannot scroll one section on its own. The title is the task: a Claude Code conversation title, else the project folder, else the tool. The subtitle is tool, folder and working or quiet. Each agent has a submenu to stop keeping awake for it, show its folder and see its process and host app.
 3. "Stay awake" with a submenu of durations; the running one is checked, its time left is the item's subtitle, and choosing it again stops it. Directly below, "Stay awake when lid is closed" as a checkmark item.
-4. App: "About Until" (the standard About window), "Settings…" with Command-comma, "Quit Until" with Command-Q.
+4. "When agents finish": a section header and three checkmark items, "Sleep as usual", "Sleep right away" and "Shut down". The choice applies once, then goes back to "Sleep as usual", and turning Until off cancels it. It waits a minute after the last agent stops, after a timed keep-awake ends and while a Claude Code session waits for an answer. Until holds sleep through that minute; an agent starting its next step cancels the countdown, which the switch's subtitle shows and a notification announces. A Mac that sleeps during the countdown stays asleep. Choosing "Shut down" asks for macOS's Automation permission right away. After a denial its subtitle points to System Settings, and clicking it opens them.
+5. App: "About Until" (the standard About window), "Settings…" with Command-comma, "Quit Until" with Command-Q.
 
 ## Settings
 
