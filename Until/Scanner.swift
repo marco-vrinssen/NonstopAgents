@@ -129,6 +129,8 @@ enum ClaudeSessions {
         let cwd: String
         /// Busy or not, nil when the status is unknown.
         let busy: Bool?
+        /// Stopped on a question or permission prompt for the user.
+        var waiting = false
     }
 
     /// The ~/.claude folder; inside the App Sandbox only after the user grants access.
@@ -143,12 +145,13 @@ enum ClaudeSessions {
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               json["pid"] as? Int == Int(pid),
               let id = json["sessionId"] as? String else { return nil }
-        let busy: Bool? = switch json["status"] as? String {
+        let status = json["status"] as? String
+        let busy: Bool? = switch status {
         case "busy": true
         case "idle", "waiting": false
         default: nil
         }
-        return Session(id: id, cwd: json["cwd"] as? String ?? "", busy: busy)
+        return Session(id: id, cwd: json["cwd"] as? String ?? "", busy: busy, waiting: status == "waiting")
     }
 
     /// The name the user gave the conversation, else the title Claude Code wrote for it.

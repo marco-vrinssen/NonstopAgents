@@ -30,6 +30,8 @@
 	<string>public.app-category.utilities</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>15.0</string>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>Until shuts down your Mac when your agents finish, only when you choose Shut down in its menu.</string>
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSHumanReadableCopyright</key>

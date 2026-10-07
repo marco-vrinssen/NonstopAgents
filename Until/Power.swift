@@ -1,3 +1,4 @@
+import CoreServices
 import Foundation
 import IOKit
 import IOKit.ps
@@ -163,4 +164,67 @@ final class PipeGuard {
         let deadline = Date().addingTimeInterval(2)
         while p.isRunning, Date() < deadline { usleep(20_000) }
     }
+}
+
+/// What the Mac does once the agents finish, one time: sleep or shut down.
+struct Finish {
+    enum Action: Int { case asUsual, sleep, shutDown }
+
+    // The wait after the last work, so an agent starting its next step cancels the countdown.
+    static let grace: TimeInterval = 60
+
+    // Switching between sleep and shut down keeps a running countdown; arming and disarming restart it.
+    var action = Action.asUsual {
+        didSet { if action == .asUsual || oldValue == .asUsual { sawWork = false; due = nil } }
+    }
+    /// When the action runs, set while the countdown is on.
+    private(set) var due: Date?
+    /// Arming it while nothing works waits for the next work rather than acting right away.
+    private var sawWork = false
+
+    /// Returns the action once it is due, then goes back to as usual.
+    mutating func update(working: Bool, now: Date) -> Action? {
+        guard action != .asUsual else { return nil }
+        if working {
+            sawWork = true
+            due = nil
+            return nil
+        }
+        guard sawWork else { return nil }
+        let at = due ?? now.addingTimeInterval(Self.grace)
+        guard at <= now else {
+            due = at
+            return nil
+        }
+        let ready = action
+        action = .asUsual
+        return ready
+    }
+
+    /// The Apple menu's Sleep or Shut Down. Apps can still stop a shut down, for example to save a document.
+    static func run(_ action: Action) -> Bool {
+        switch action {
+        case .asUsual:
+            return true
+        case .sleep:
+            // Allowed for the logged-in user without a password, also in the App Sandbox.
+            let port = IOPMFindPowerManagement(mach_port_t(MACH_PORT_NULL))
+            defer { IOServiceClose(port) }
+            return IOPMSleepSystem(port) == kIOReturnSuccess
+        case .shutDown:
+            // Without permission the event would raise macOS's prompt and wait for an answer.
+            guard shutDownPermission(ask: false) == noErr else { return false }
+            let event = NSAppleEventDescriptor(eventClass: AEEventClass(kCoreEventClass), eventID: AEEventID(kAEShutDown),
+                                               targetDescriptor: loginwindow, returnID: AEReturnID(kAutoGenerateReturnID),
+                                               transactionID: AETransactionID(kAnyTransactionID))
+            return (try? event.sendEvent(options: .noReply, timeout: 10)) != nil
+        }
+    }
+
+    /// Whether Until may control loginwindow, which shuts down the Mac; asking blocks until the user answers.
+    static func shutDownPermission(ask: Bool) -> OSStatus {
+        AEDeterminePermissionToAutomateTarget(loginwindow.aeDesc, AEEventClass(kCoreEventClass), AEEventID(kAEShutDown), ask)
+    }
+
+    private static let loginwindow = NSAppleEventDescriptor(bundleIdentifier: "com.apple.loginwindow")
 }
