@@ -5,6 +5,7 @@
 - Native macOS components and stock behavior only, as `DESIGN.md` describes. No tab or window animations. The only forced behaviors are the status dot's image visibility and ordering the settings window to the front.
 - The status item is a template image, not an attributed title. A title's sparkle attachment blurs at 1x, and titles ignore `appearsDisabled`, which dims off and paused.
 - No settings that change macOS sleep beyond holding idle sleep. The one exception is the menu's one-time "When agents finish" choice, which sleeps or shuts down the Mac once.
+- The app icon is Until's own sparkle. Never put an SF Symbol or a look-alike in the app icon or a logo; Apple's terms forbid it.
 - Don't use SwiftUI `@State`. In the macOS 27 SDK its macro plugin ships only with Xcode, so the Command Line Tools can't build it. Use `@Observable` classes.
 
 ## Checks
