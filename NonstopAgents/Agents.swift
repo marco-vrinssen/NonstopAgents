@@ -1,7 +1,7 @@
 import Darwin
 import Foundation
 
-/// An AI tool Until recognises by how its processes look on macOS.
+/// An AI tool Nonstop Agents recognises by how its processes look on macOS.
 struct Agent: Hashable, Identifiable {
     let id: String
     let name: String
@@ -174,5 +174,15 @@ extension Agent {
             current = p.ppid
         }
         return ["zsh", "bash", "fish", "sh", "login", "launchd"].contains(last) ? "" : last
+    }
+
+    /// The app bundle an agent runs in, or is part of, such as Terminal.app or Cursor.app.
+    static func hostApp(of pid: pid_t, in table: [pid_t: Proc]) -> URL? {
+        var current = pid
+        while current > 1, let p = table[current] {
+            if let range = p.path.range(of: ".app/") { return URL(fileURLWithPath: String(p.path[..<range.lowerBound]) + ".app") }
+            current = p.ppid
+        }
+        return nil
     }
 }

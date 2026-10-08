@@ -41,13 +41,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         model.shutdown()
     }
 
-    /// Opening Until again while it runs, from Finder or Spotlight, shows its settings.
+    /// Opening Nonstop Agents again while it runs, from Finder or Spotlight, shows its settings.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         openSettings()
         return false
     }
 
-    // Left click turns Until on or off. Right click or control-click opens the menu.
+    // Left click turns Nonstop Agents on or off. Right click or control-click opens the menu.
     @objc private func clicked() {
         let event = NSApp.currentEvent
         if event?.type == .rightMouseUp || event?.modifierFlags.contains(.control) == true { showMenu() } else { model.toggle() }
@@ -138,7 +138,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private var menuSignature: String {
         model.stateTitle + model.summary + "\(model.manualChoice ?? -1)\(model.manualRemaining ?? "")\(model.lidMode)\(model.lidUnavailable)"
-            + model.runs.map { "\($0.id)\($0.working)\($0.title)\(model.ignored.contains($0.id))" }.joined()
+            + model.runs.map { "\($0.id)\($0.working)\($0.title)" }.joined()
     }
 
     /// Agents shown in the menu itself; the rest go into a submenu, which macOS scrolls when long.
@@ -149,8 +149,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         shownMenu = menuSignature
 
         // The switch comes first. A stock status dot in its state column marks on and paused.
-        let power = action("Until active", #selector(togglePower))
-        power.subtitle = model.summary
+        let power = action(model.switchTitle, #selector(togglePower))
         power.state = model.powerState
         power.onStateImage = NSImage(named: NSImage.statusAvailableName)
         power.mixedStateImage = NSImage(named: NSImage.statusPartiallyAvailableName)
@@ -197,37 +196,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(lid)
         menu.addItem(.separator())
 
-        menu.addItem(action("About Until", #selector(showAbout)))
+        menu.addItem(action("About Nonstop Agents", #selector(showAbout)))
         let settings = action("Settings", #selector(openSettings), key: ",")
         // macOS 27 adds a gear to Settings, which would push its title out of line with the others.
         if #available(macOS 27, *) { settings.preferredImageVisibility = .hidden }
         menu.addItem(settings)
-        menu.addItem(action("Quit Until", #selector(NSApplication.terminate(_:)), key: "q", target: NSApp))
+        menu.addItem(action("Quit Nonstop Agents", #selector(NSApplication.terminate(_:)), key: "q", target: NSApp))
     }
 
     private func agentItem(_ run: AgentRun) -> NSMenuItem {
-        let ignored = model.ignored.contains(run.id)
         let entry = NSMenuItem(title: run.title, action: nil, keyEquivalent: "")
         let tool = run.title == run.agent.name ? "" : run.agent.name
         let folder = run.title == run.folder ? "" : run.folder
-        let state = ignored ? "ignored" : run.working ? "working" : "quiet"
-        entry.subtitle = [tool, folder, state].filter { !$0.isEmpty }.joined(separator: " · ")
+        entry.subtitle = [tool, folder, run.working ? "working" : "quiet"].filter { !$0.isEmpty }.joined(separator: " · ")
 
         // The same stock green dot as the switch marks each agent that keeps the Mac awake right now.
-        entry.state = run.working && !ignored ? .on : .off
+        entry.state = run.working ? .on : .off
         entry.onStateImage = NSImage(named: NSImage.statusAvailableName)
 
         let options = NSMenu()
-        let keep = action("Keep awake for this agent", #selector(toggleIgnore(_:)))
-        keep.state = ignored ? .off : .on
-        keep.representedObject = run.id
-        options.addItem(keep)
         if !run.directory.isEmpty, run.directory != "/" {
-            let show = action("Show folder in Finder", #selector(showFolder(_:)))
-            show.representedObject = run.directory
-            options.addItem(show)
+            let folderItem = action("Open folder", #selector(openFolder(_:)))
+            folderItem.representedObject = run.directory
+            options.addItem(folderItem)
         }
-        options.addItem(.separator())
+        if let app = run.app {
+            let sessionItem = action("Open session", #selector(openSession(_:)))
+            sessionItem.representedObject = app
+            options.addItem(sessionItem)
+        }
+        if !options.items.isEmpty { options.addItem(.separator()) }
         let place = run.host.isEmpty ? "" : " in \(run.host)"
         let info = NSMenuItem(title: "Process \(run.id)\(place), started \(run.started.formatted(.relative(presentation: .named)))",
                               action: nil, keyEquivalent: "")
@@ -249,14 +247,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
     @objc private func toggleLid() { model.lidMode.toggle() }
 
-    @objc private func toggleIgnore(_ sender: NSMenuItem) {
-        guard let pid = sender.representedObject as? pid_t, let run = model.runs.first(where: { $0.id == pid }) else { return }
-        model.toggleIgnore(run)
-    }
-
-    @objc private func showFolder(_ sender: NSMenuItem) {
+    // The App Sandbox lets Finder reveal a folder but not open it, so Finder shows it selected in its parent.
+    @objc private func openFolder(_ sender: NSMenuItem) {
         guard let path = sender.representedObject as? String else { return }
         NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
+    }
+
+    // Brings the agent's app to the front, the way clicking it in the Dock does. Picking its exact window or tab would need Automation access.
+    @objc private func openSession(_ sender: NSMenuItem) {
+        guard let app = sender.representedObject as? URL else { return }
+        NSWorkspace.shared.openApplication(at: app, configuration: NSWorkspace.OpenConfiguration())
     }
 
     // MARK: Settings
@@ -304,7 +304,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return item
         }
         add([entry("Close", #selector(NSWindow.performClose(_:)), "w"),
-             entry("Quit Until", #selector(NSApplication.terminate(_:)), "q")])
+             entry("Quit Nonstop Agents", #selector(NSApplication.terminate(_:)), "q")])
         add([entry("Undo", Selector(("undo:")), "z"),
              entry("Redo", Selector(("redo:")), "z", [.command, .shift]),
              entry("Cut", #selector(NSText.cut(_:)), "x"),
@@ -324,11 +324,14 @@ extension Model {
         }
     }
 
+    /// The switch title, such as "2 Nonstop Agents working".
+    var switchTitle: String { "\(workingCount) Nonstop \(workingCount == 1 ? "Agent" : "Agents") working" }
+
     var stateTitle: String {
         switch status {
-        case .off: "Until is off"
-        case .battery, .hot: "Until is paused"
-        default: "Until is on"
+        case .off: "Nonstop Agents is off"
+        case .battery, .hot: "Nonstop Agents is paused"
+        default: "Nonstop Agents is on"
         }
     }
 

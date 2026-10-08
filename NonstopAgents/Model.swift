@@ -5,7 +5,7 @@ import OSLog
 import ServiceManagement
 import UserNotifications
 
-private let log = Logger(subsystem: "com.marcovrinssen.until", category: "status")
+private let log = Logger(subsystem: "com.marcovrinssen.nonstopagents", category: "status")
 
 /// The real home folder; NSHomeDirectory() points into the container when sandboxed.
 let realHome = getpwuid(getuid()).map { String(cString: $0.pointee.pw_dir) } ?? NSHomeDirectory()
@@ -17,6 +17,8 @@ struct AgentRun: Identifiable, Equatable {
     let started: Date
     let directory: String
     let host: String
+    /// The app bundle the agent runs in, which Open session brings to the front.
+    let app: URL?
     var working: Bool
     /// The agent's own name for its task, such as a Claude Code conversation title.
     var task: String?
@@ -33,7 +35,7 @@ struct AgentRun: Identifiable, Equatable {
     var title: String { task ?? (folder.isEmpty ? agent.name : folder) }
 }
 
-/// Why Until is or is not keeping the Mac awake right now.
+/// Why Nonstop Agents is or is not keeping the Mac awake right now.
 enum Status: Equatable {
     case idle
     case working(Int)
@@ -66,11 +68,10 @@ final class Model {
     private(set) var manualUntil: Date?
     /// The chosen keep-awake duration in minutes, 0 for until turned off.
     private(set) var manualChoice: Int?
-    /// macOS has notifications for Until turned off.
+    /// macOS has notifications for Nonstop Agents turned off.
     private(set) var notificationsDenied = false
     /// macOS refused the lid setting; retried only when lid mode is turned on again.
     private(set) var lidUnavailable = false
-    private(set) var ignored: Set<pid_t> = []
     private(set) var loginItem = SMAppService.mainApp.status == .enabled
     private(set) var claudeAccess = false
     var onChange: (() -> Void)?
@@ -85,7 +86,7 @@ final class Model {
     private var notifiedHeat = false
     private var known: [pid_t: AgentRun] = [:]
 
-    var workingCount: Int { runs.filter { $0.working && !ignored.contains($0.id) }.count }
+    var workingCount: Int { runs.filter(\.working).count }
 
     init() {
         openClaudeFolder()
@@ -146,11 +147,6 @@ final class Model {
         return formatter
     }()
 
-    func toggleIgnore(_ run: AgentRun) {
-        if ignored.remove(run.id) == nil { ignored.insert(run.id) }
-        tick()
-    }
-
     func setLoginItem(_ on: Bool) {
         do {
             if on { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
@@ -160,7 +156,7 @@ final class Model {
         loginItem = SMAppService.mainApp.status == .enabled
     }
 
-    /// Releases everything before quitting so the Mac never stays awake without Until.
+    /// Releases everything before quitting so the Mac never stays awake without the app.
     func shutdown() {
         timer?.invalidate()
         assertion.hold(false)
@@ -197,13 +193,13 @@ final class Model {
                 started: started,
                 directory: ProcessTable.workingDirectory(s.pid),
                 host: Agent.host(of: s.pid, in: table),
+                app: Agent.hostApp(of: s.pid, in: table),
                 working: false)
             run.working = working.contains(s.pid)
             run.task = sessions[s.pid].flatMap(ClaudeSessions.title(of:))
             next[s.pid] = run
         }
         known = next
-        ignored.formIntersection(next.keys)
         ClaudeSessions.forget(except: Set(sessions.values.map(\.id)))
         runs = next.values.sorted { ($0.working ? 0 : 1, $0.started) < ($1.working ? 0 : 1, $1.started) }
         tick()
@@ -270,7 +266,7 @@ final class Model {
     #if APPSTORE
     func grantClaudeAccess() {
         let panel = NSOpenPanel()
-        panel.message = "Choose the .claude folder in your home folder so Until can read what Claude Code is working on."
+        panel.message = "Choose the .claude folder in your home folder so Nonstop Agents can read what Claude Code is working on."
         panel.prompt = "Allow"
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
@@ -329,11 +325,11 @@ final class Model {
     private func notifyTransitions(count: Int, lowBattery: Bool, hot: Bool) {
         // Only when nobody is at the Mac; at the desk the count already says it.
         let away = CGEventSource.secondsSinceLastEventType(.hidSystemState, eventType: CGEventType(rawValue: ~0)!) > 120
-        if notifyFinished, wasWorking, count == 0, away { post("Agents finished", "Until will let your Mac sleep.") }
+        if notifyFinished, wasWorking, count == 0, away { post("Agents finished", "Your Mac can sleep now.") }
         wasWorking = count > 0
-        if notifyBattery, lowBattery, !notifiedBattery { post("Until paused", "Battery is at \(battery.level ?? 0)%. Your Mac can sleep now.") }
+        if notifyBattery, lowBattery, !notifiedBattery { post("Nonstop Agents paused", "Battery is at \(battery.level ?? 0)%. Your Mac can sleep now.") }
         notifiedBattery = lowBattery
-        if notifyHeat, hot, !notifiedHeat { post("Until paused", "Your Mac is hot. It can sleep now.") }
+        if notifyHeat, hot, !notifiedHeat { post("Nonstop Agents paused", "Your Mac is hot. It can sleep now.") }
         notifiedHeat = hot
     }
 

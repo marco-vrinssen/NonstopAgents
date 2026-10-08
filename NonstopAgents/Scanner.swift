@@ -168,7 +168,7 @@ enum ClaudeSessions {
         titleQueue.async { progress = progress.filter { live.contains($0.key) } }
     }
 
-    private static let titleQueue = DispatchQueue(label: "Until.titles", qos: .utility)
+    private static let titleQueue = DispatchQueue(label: "NonstopAgents.titles", qos: .utility)
     nonisolated(unsafe) private static var titles: [String: String] = [:]
     nonisolated(unsafe) private static var progress: [String: (offset: Int, custom: String?, ai: String?)] = [:]
 
