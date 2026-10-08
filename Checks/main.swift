@@ -152,7 +152,7 @@ assert(run([(100, [agentAt(100, 0)])], oneShot: true) == [true])
 
 // Claude Code titles: the user's name beats the AI title, other text that mentions a title is ignored,
 // and lines appended later are picked up.
-let home = FileManager.default.temporaryDirectory.appendingPathComponent("until-check-\(getpid())")
+let home = FileManager.default.temporaryDirectory.appendingPathComponent("nonstopagents-check-\(getpid())")
 let project = home.appendingPathComponent("projects/-tmp-my-app")
 try! FileManager.default.createDirectory(at: project, withIntermediateDirectories: true)
 let transcript = project.appendingPathComponent("s1.jsonl")

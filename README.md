@@ -1,12 +1,12 @@
-# Until
+# Nonstop Agents
 
-A sparkle in the macOS menu bar that counts the AI agents working on your Mac and keeps it awake until they finish, lid closed included. Then macOS sleeps on its own schedule again.
+Keeps your Mac awake while AI agents work, lid closed included, so they run nonstop. A sparkle in the menu bar counts the working agents. When they finish, macOS sleeps on its own schedule again.
 
 ## In short
 
-- The menu bar shows a pill with the number of working agents, the sparkle, and the time left on a timed keep-awake cut out of it. Dimmed means Until is off or paused.
-- Click the sparkle to turn Until on or off.
-- Right-click for the menu: the switch, every agent named after its task with a green dot while it works, stay awake indefinitely or for a while, with the lid closed, settings.
+- The menu bar shows a pill with the number of working agents, the sparkle, and the time left on a timed keep-awake cut out of it. Dimmed means the app is off or paused.
+- Click the sparkle to turn the app on or off.
+- Right-click for the menu: the number of working agents, every agent named after its task with a green dot while it works and its folder and session one click away, stay awake indefinitely or for a while, with the lid closed, settings.
 - Two editions from one codebase: App Store (sandboxed) and Direct (Developer ID).
 
 ## Build
@@ -15,21 +15,21 @@ Xcode is not required. The Command Line Tools build and sign a runnable app.
 
 | Command | Result |
 | --- | --- |
-| `./build.sh` | Direct edition at `build/Until.app` |
+| `./build.sh` | Direct edition at `build/Nonstop Agents.app` |
 | `./build.sh run` | Builds the direct edition and launches it |
-| `./build.sh appstore` | Sandboxed App Store edition at `build/AppStore/Until.app` |
+| `./build.sh appstore` | Sandboxed App Store edition at `build/AppStore/Nonstop Agents.app` |
 | `./build.sh check` | Runs the detection self-check |
 | `./build.sh check --live` | Prints this Mac's agents and their state every 5 seconds |
 | `./build.sh icon` | Renders `Design/Icon/AppIcon.svg` into the app icon set |
 
-Builds are universal (Apple Silicon and Intel), need macOS 15 or later, and are signed ad hoc. For distribution, open `Until.xcodeproj` in Xcode 26 or later and pick a scheme:
+Builds are universal (Apple Silicon and Intel), need macOS 15 or later, and are signed ad hoc. For distribution, open `NonstopAgents.xcodeproj` in Xcode 26 or later and pick a scheme:
 
 | Scheme | Runs | Archives |
 | --- | --- | --- |
-| Until | App Store edition | Release, sandboxed, for App Store Connect |
-| Until Direct | Direct edition | Direct, hardened runtime, for Developer ID and notarization |
+| Nonstop Agents | App Store edition | Release, sandboxed, for App Store Connect |
+| Nonstop Agents Direct | Direct edition | Direct, hardened runtime, for Developer ID and notarization |
 
-Set your team under Signing and Capabilities before archiving. Version and bundle id live in `Config/Info.plist`.
+Set your team under Signing and Capabilities before archiving. The version lives in `Config/Info.plist`. The bundle IDs are `com.marcovrinssen.nonstopagents` for the App Store and `com.marcovrinssen.nonstopagents.direct` for Direct, set in `build.sh` and the Xcode project.
 
 ## Editions
 
@@ -39,11 +39,11 @@ Set your team under Signing and Capabilities before archiving. Version and bundl
 | Stay awake with lid closed | Yes, through IOKit, no password | Yes, through IOKit, no password |
 | Claude Code status and titles | After the user grants access to `~/.claude` | Automatic |
 
-Plugging the charger in or out with the lid closed can still put some Apple Silicon Macs to sleep. A root `pmset` helper would cover it, but App Review rule 2.4.5(v) forbids root helpers, so Until has none.
+Plugging the charger in or out with the lid closed can still put some Apple Silicon Macs to sleep. A root `pmset` helper would cover it, but App Review rule 2.4.5(v) forbids root helpers, so Nonstop Agents has none.
 
 ## How detection works
 
-Until scans the process table every 5 seconds and keeps the agents it recognises by executable, script path and arguments. Each agent then counts as working on the first signal that applies:
+Nonstop Agents scans the process table every 5 seconds and keeps the agents it recognises by executable, script path and arguments. Each agent then counts as working on the first signal that applies:
 
 1. The agent reports its state. Claude Code writes `busy`, `waiting` or `idle` per process to `~/.claude/sessions`.
 2. It is a one-shot run, such as `claude -p` or `codex exec`, which exits when done.
@@ -51,7 +51,7 @@ Until scans the process table every 5 seconds and keeps the agents it recognises
 4. Its process tree uses CPU: above 2 % of a core while it streams or runs tools. Idle agents measured 0.1 to 0.8 %.
 5. It runs a tool process started in the last 10 minutes, so a silent `sleep` or network wait counts. Services started with the agent, such as MCP servers, do not.
 
-An agent that reports its own state is released the moment it says it is done. Any other agent stays working for two minutes after its last signal, which covers a model thinking without output. Until only blocks idle system sleep; display sleep and the sleep timers stay with macOS.
+An agent that reports its own state is released the moment it says it is done. Any other agent stays working for two minutes after its last signal, which covers a model thinking without output. Nonstop Agents only blocks idle system sleep; display sleep and the sleep timers stay with macOS.
 
 Each agent is named after its task. Claude Code sessions use the name set with `/rename`, else the title Claude Code writes for the conversation. Other agents use their project folder.
 
@@ -69,15 +69,15 @@ An editor, terminal or agent that is merely open never counts.
 
 ## Safety
 
-- Lid-closed mode disables lid sleep only while Until keeps the Mac awake. A guard process restores it when Until quits or crashes.
-- On battery Until stops at the level you set, 20% by default, also with the lid closed.
-- Until lets the Mac sleep when it runs hot, earlier with the lid closed.
+- Lid-closed mode disables lid sleep only while the app keeps the Mac awake. A guard process restores it when the app quits or crashes.
+- On battery, Nonstop Agents stops at the level you set, 20% by default, also with the lid closed.
+- Nonstop Agents lets the Mac sleep when it runs hot, earlier with the lid closed.
 
 ## Layout
 
 | Path | Contents |
 | --- | --- |
-| `Until/` | App sources and the app icon |
+| `NonstopAgents/` | App sources and the app icon |
 | `Config/` | `Info.plist` and the two entitlement files |
 | `Checks/` | Detection self-check and live monitor |
 | `DESIGN.md` | Design language for the dot, menu and settings |

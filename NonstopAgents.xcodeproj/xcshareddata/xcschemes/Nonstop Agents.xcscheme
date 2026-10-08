@@ -15,9 +15,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "8C0000000000000000000030"
-               BuildableName = "Until.app"
-               BlueprintName = "Until"
-               ReferencedContainer = "container:Until.xcodeproj">
+               BuildableName = "Nonstop Agents.app"
+               BlueprintName = "Nonstop Agents"
+               ReferencedContainer = "container:NonstopAgents.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -29,7 +29,7 @@
       shouldUseLaunchSchemeArgsEnv = "YES">
    </TestAction>
    <LaunchAction
-      buildConfiguration = "Debug"
+      buildConfiguration = "Release"
       selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
       selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
       launchStyle = "0"
@@ -43,14 +43,14 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "8C0000000000000000000030"
-            BuildableName = "Until.app"
-            BlueprintName = "Until"
-            ReferencedContainer = "container:Until.xcodeproj">
+            BuildableName = "Nonstop Agents.app"
+            BlueprintName = "Nonstop Agents"
+            ReferencedContainer = "container:NonstopAgents.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
    <ProfileAction
-      buildConfiguration = "Direct"
+      buildConfiguration = "Release"
       shouldUseLaunchSchemeArgsEnv = "YES"
       savedToolIdentifier = ""
       useCustomWorkingDirectory = "NO"
@@ -60,9 +60,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "8C0000000000000000000030"
-            BuildableName = "Until.app"
-            BlueprintName = "Until"
-            ReferencedContainer = "container:Until.xcodeproj">
+            BuildableName = "Nonstop Agents.app"
+            BlueprintName = "Nonstop Agents"
+            ReferencedContainer = "container:NonstopAgents.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>
@@ -70,7 +70,7 @@
       buildConfiguration = "Debug">
    </AnalyzeAction>
    <ArchiveAction
-      buildConfiguration = "Direct"
+      buildConfiguration = "Release"
       revealArchiveInOrganizer = "YES">
    </ArchiveAction>
 </Scheme>

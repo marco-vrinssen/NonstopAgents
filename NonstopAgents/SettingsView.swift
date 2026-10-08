@@ -65,7 +65,7 @@ private struct GeneralPane: View {
             } footer: {
                 if model.notificationsDenied {
                     HStack {
-                        Text("Notifications for Until are turned off in System Settings.")
+                        Text("Notifications for Nonstop Agents are turned off in System Settings.")
                         Spacer()
                         Button("Open System Settings") {
                             let id = Bundle.main.bundleIdentifier ?? ""
@@ -98,7 +98,7 @@ private struct GeneralPane: View {
             Button("Keep awake", role: .destructive) { model.thermalGuard = false }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Until will no longer let the Mac sleep when it runs hot. Closed in a bag, it can overheat.")
+            Text("Nonstop Agents will no longer let the Mac sleep when it runs hot. Closed in a bag, it can overheat.")
         }
     }
 }
@@ -129,7 +129,7 @@ private struct AgentsPane: View {
             } header: {
                 Text("Claude Code")
             } footer: {
-                Text("Lets Until read each Claude Code session's state and title.")
+                Text("Lets Nonstop Agents read each Claude Code session's state and title.")
             }
             #endif
 

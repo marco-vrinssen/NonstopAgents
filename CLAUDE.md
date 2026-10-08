@@ -1,11 +1,13 @@
-# Until
+# Nonstop Agents
 
 ## Rules
 
+- The name is Nonstop Agents, with "Nonstop" as one word. Never write "NonStop", which is how HPE styles its servers, or "Non-Stop".
 - Native macOS components and stock behavior only, as `DESIGN.md` describes. No tab or window animations. The only forced behaviors are hiding the gear macOS 27 adds to Settings in the menu and ordering the settings window to the front.
 - The status item is a template image, not an attributed title. A title's sparkle attachment blurs at 1x, and titles ignore `appearsDisabled`, which dims off and paused.
 - No settings that change macOS sleep beyond holding idle sleep.
-- The app icon is Until's own sparkle. Never put an SF Symbol or a look-alike in the app icon or a logo; Apple's terms forbid it.
+- The app icon is the app's own sparkle. Never put an SF Symbol or a look-alike in the app icon or a logo; Apple's terms forbid it.
+- In the App Sandbox, `NSWorkspace.open` and `selectFile(_:inFileViewerRootedAtPath:)` can't show a folder outside the container, but `activateFileViewerSelecting` and `openApplication(at:)` work. Tested on 2026-10-08.
 - Don't use SwiftUI `@State`. In the macOS 27 SDK its macro plugin ships only with Xcode, so the Command Line Tools can't build it. Use `@Observable` classes.
 
 ## Checks
@@ -14,6 +16,6 @@
 - `screencapture -l` can't capture the status item window. Capture it by region.
 - The status button's height follows the image, and its frame moves with the image's alignment rect. Measure the item's position from `alignmentRect(forFrame:)`.
 - macOS clips a status image to its alignment rect. An alignment rect that reaches past the image crops it, so move content inside a taller image instead.
-- Restarting Until drops its sleep hold. With the display off and nobody at the Mac, the Mac sleeps at once. Run `caffeinate -i -t 30 &` before `pkill -x Until`.
+- Restarting the app drops its sleep hold. With the display off and nobody at the Mac, the Mac sleeps at once. Run `caffeinate -i -t 30 &` before `pkill -x "Nonstop Agents"`.
 - A menu item with a subtitle has the accessibility name "title, subtitle". Script the menu with that name.
-- Once the App Store edition has run, `defaults write com.marcovrinssen.until` writes into its sandbox container.
+- Once the App Store edition has saved a setting, `defaults write com.marcovrinssen.nonstopagents` writes into its sandbox container. Before that it writes to `~/Library/Preferences`, which the sandboxed app never reads, so write to `~/Library/Containers/com.marcovrinssen.nonstopagents/Data/Library/Preferences/com.marcovrinssen.nonstopagents` instead. The Direct edition uses `com.marcovrinssen.nonstopagents.direct`.

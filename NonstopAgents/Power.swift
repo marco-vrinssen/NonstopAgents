@@ -11,7 +11,7 @@ final class Assertion {
     func hold(_ on: Bool) {
         failed = false
         if on, id == 0 {
-            let reason = "Until is keeping the Mac awake while AI agents work" as CFString
+            let reason = "Nonstop Agents is keeping the Mac awake while AI agents work" as CFString
             if IOPMAssertionCreateWithName(kIOPMAssertionTypePreventUserIdleSystemSleep as CFString,
                                            IOPMAssertionLevel(kIOPMAssertionLevelOn), reason, &id) != kIOReturnSuccess {
                 id = 0
@@ -26,7 +26,7 @@ final class Assertion {
 
 extension Assertion {
     /// Processes that keep the Mac from sleeping themselves, with their assertion names.
-    /// Until's own assertions and media playback are left out.
+    /// The app's own assertions and media playback are left out.
     static func holders() -> [pid_t: [String]] {
         var result: Unmanaged<CFDictionary>?
         guard IOPMCopyAssertionsByProcess(&result) == kIOReturnSuccess,
@@ -94,8 +94,8 @@ enum Clamshell {
         return connect
     }
 
-    /// Entry point of the guard child (`Until --lid-guard`). It disables lid-close sleep and
-    /// restores it when its stdin closes, which also happens when Until quits or crashes.
+    /// Entry point of the guard child (`Nonstop Agents --lid-guard`). It disables lid-close sleep and
+    /// restores it when its stdin closes, which also happens when the app quits or crashes.
     static func runGuard() -> Never {
         let connect = setSleepDisabled(true)
         guard connect != 0 else { exit(1) }
