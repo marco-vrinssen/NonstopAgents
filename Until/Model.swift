@@ -48,7 +48,7 @@ enum Status: Equatable {
 @Observable
 final class Model {
     // Settings, persisted in UserDefaults.
-    var enabled = Model.load("enabled", true) { didSet { save("enabled", enabled); if !enabled { finish.action = .asUsual }; tick() } }
+    var enabled = Model.load("enabled", true) { didSet { save("enabled", enabled); tick() } }
     var lidMode = Model.load("lidMode", false) { didSet { save("lidMode", lidMode); lidUnavailable = false; tick() } }
     var batteryFloor = min(50, Model.load("batteryFloor", 20)) { didSet { save("batteryFloor", batteryFloor); tick() } }
     var thermalGuard = Model.load("thermalGuard", true) { didSet { save("thermalGuard", thermalGuard); tick() } }
@@ -71,10 +71,6 @@ final class Model {
     /// macOS refused the lid setting; retried only when lid mode is turned on again.
     private(set) var lidUnavailable = false
     private(set) var ignored: Set<pid_t> = []
-    /// What the Mac does the next time the agents finish. Not saved, it applies once.
-    private(set) var finish = Finish()
-    /// The user declined to let Until shut down the Mac.
-    private(set) var shutDownBlocked = false
     private(set) var loginItem = SMAppService.mainApp.status == .enabled
     private(set) var claudeAccess = false
     var onChange: (() -> Void)?
@@ -88,8 +84,6 @@ final class Model {
     private var notifiedBattery = false
     private var notifiedHeat = false
     private var known: [pid_t: AgentRun] = [:]
-    /// Claude Code sessions stopped on a question for the user, which have not finished their task.
-    private var waiting: Set<pid_t> = []
 
     var workingCount: Int { runs.filter { $0.working && !ignored.contains($0.id) }.count }
 
@@ -117,11 +111,6 @@ final class Model {
         }
         NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.rescan() }
-        }
-
-        // A Mac that sleeps during the countdown stays asleep; waking it later must not shut it down.
-        NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { if self?.finish.due != nil { self?.finish.action = .asUsual } }
         }
         requestNotifications()
         rescan()
@@ -157,27 +146,6 @@ final class Model {
         return formatter
     }()
 
-    func chooseFinish(_ action: Finish.Action) {
-        finish.action = action
-        if action != .asUsual, !enabled { enabled = true } else { tick() }
-        guard action == .shutDown else { return }
-
-        // macOS asks once, now rather than when nobody may be there; after a no, System Settings holds the switch.
-        DispatchQueue.global().async {
-            let before = Finish.shutDownPermission(ask: false)
-            let refused = before == OSStatus(errAEEventNotPermitted)
-            let allowed = before == noErr || (!refused && Finish.shutDownPermission(ask: true) == noErr)
-            DispatchQueue.main.async {
-                if refused {
-                    NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation")!)
-                }
-                self.shutDownBlocked = !allowed
-                if !allowed, self.finish.action == .shutDown { self.finish.action = .asUsual }
-                self.tick()
-            }
-        }
-    }
-
     func toggleIgnore(_ run: AgentRun) {
         if ignored.remove(run.id) == nil { ignored.insert(run.id) }
         tick()
@@ -209,12 +177,10 @@ final class Model {
         let agents = Agent.all.filter { !disabledAgents.contains($0.id) } + customAgents.map(Agent.custom)
         var sightings = Agent.find(in: table, agents: agents)
         var sessions: [pid_t: ClaudeSessions.Session] = [:]
-        var asking: Set<pid_t> = []
         for i in sightings.indices where sightings[i].agent.id == "claude" {
             let pid = sightings[i].pid
             sessions[pid] = ClaudeSessions.session(pid: pid, started: table[pid]?.start ?? 0)
             sightings[i].status = sessions[pid]?.busy
-            if sessions[pid]?.waiting == true { asking.insert(pid) }
         }
         let holders = Assertion.holders()
         var working = tracker.update(table: table, sightings: sightings, asserting: Set(holders.keys), now: now.timeIntervalSince1970)
@@ -239,7 +205,6 @@ final class Model {
         known = next
         ignored.formIntersection(next.keys)
         ClaudeSessions.forget(except: Set(sessions.values.map(\.id)))
-        waiting = asking
         runs = next.values.sorted { ($0.working ? 0 : 1, $0.started) < ($1.working ? 0 : 1, $1.started) }
         tick()
     }
@@ -261,15 +226,8 @@ final class Model {
         let thermal = ProcessInfo.processInfo.thermalState
         let hot = thermalGuard && (thermal == .critical || (lidClosed && thermal == .serious))
 
-        // A timed keep-awake and an agent waiting for an answer count as work, so the action waits for both.
-        let counting = finish.due != nil
-        if let action = finish.update(working: wanted || !waiting.subtracting(ignored).isEmpty, now: now) {
-            log.notice("Agents finished, running \(String(describing: action), privacy: .public)")
-            if !Finish.run(action) { log.error("macOS declined \(String(describing: action), privacy: .public)") }
-        }
-
-        // Only system sleep is held, also through the countdown. Display sleep and the sleep timers stay with macOS.
-        let hold = enabled && (wanted || finish.due != nil) && !lowBattery && !hot
+        // Only system sleep is held. Display sleep and the sleep timers stay with macOS.
+        let hold = enabled && wanted && !lowBattery && !hot
         assertion.hold(hold)
         if hold && lidMode { holdLid() } else { releaseLid() }
 
@@ -286,8 +244,7 @@ final class Model {
             let names = runs.filter(\.working).map { "\($0.agent.name) \($0.id)" }.joined(separator: ", ")
             log.notice("\(String(describing: self.status), privacy: .public), lid \(self.lidHeld), working: \(names, privacy: .public)")
         }
-        notifyTransitions(count: enabled ? count : 0, countdown: !counting && finish.due != nil,
-                          lowBattery: lowBattery && wanted && enabled, hot: hot && wanted && enabled)
+        notifyTransitions(count: enabled ? count : 0, lowBattery: lowBattery && wanted && enabled, hot: hot && wanted && enabled)
         onChange?()
     }
 
@@ -369,14 +326,11 @@ final class Model {
         }
     }
 
-    private func notifyTransitions(count: Int, countdown: Bool, lowBattery: Bool, hot: Bool) {
+    private func notifyTransitions(count: Int, lowBattery: Bool, hot: Bool) {
         // Only when nobody is at the Mac; at the desk the count already says it.
         let away = CGEventSource.secondsSinceLastEventType(.hidSystemState, eventType: CGEventType(rawValue: ~0)!) > 120
-        if notifyFinished, wasWorking, count == 0, away, finish.due == nil { post("Agents finished", "Until will let your Mac sleep.") }
+        if notifyFinished, wasWorking, count == 0, away { post("Agents finished", "Until will let your Mac sleep.") }
         wasWorking = count > 0
-
-        // A coming sleep or shut down is announced at the desk too, so it can be cancelled.
-        if notifyFinished, countdown, let next = finishCountdown { post("Agents finished", "\(next). Choose Sleep as usual in Until's menu to cancel.") }
         if notifyBattery, lowBattery, !notifiedBattery { post("Until paused", "Battery is at \(battery.level ?? 0)%. Your Mac can sleep now.") }
         notifiedBattery = lowBattery
         if notifyHeat, hot, !notifiedHeat { post("Until paused", "Your Mac is hot. It can sleep now.") }

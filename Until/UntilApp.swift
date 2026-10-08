@@ -137,7 +137,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private var menuSignature: String {
-        model.stateTitle + model.summary + "\(model.manualChoice ?? -1)\(model.manualRemaining ?? "")\(model.lidMode)\(model.lidUnavailable)\(model.finish.action)\(model.shutDownBlocked)"
+        model.stateTitle + model.summary + "\(model.manualChoice ?? -1)\(model.manualRemaining ?? "")\(model.lidMode)\(model.lidUnavailable)"
             + model.runs.map { "\($0.id)\($0.working)\($0.title)\(model.ignored.contains($0.id))" }.joined()
     }
 
@@ -148,12 +148,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.removeAllItems()
         shownMenu = menuSignature
 
-        // The switch comes first, with a status dot so the state reads without the menu bar.
-        let power = action(model.stateTitle, #selector(togglePower))
+        // The switch comes first. A stock status dot in its state column marks on and paused.
+        let power = action("Until active", #selector(togglePower))
         power.subtitle = model.summary
-        power.image = NSImage(named: model.statusDot)
-        // macOS 27 hides menu item images unless asked; this one is the state.
-        if #available(macOS 27, *) { power.preferredImageVisibility = .visible }
+        power.state = model.powerState
+        power.onStateImage = NSImage(named: NSImage.statusAvailableName)
+        power.mixedStateImage = NSImage(named: NSImage.statusPartiallyAvailableName)
         menu.addItem(power)
         menu.addItem(.separator())
 
@@ -174,37 +174,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         menu.addItem(.separator())
 
-        // Timed keep-awake in a submenu; the running choice is checked, choosing it again stops it.
-        let awake = NSMenuItem(title: "Stay awake", action: nil, keyEquivalent: "")
-        awake.subtitle = model.manualRemaining.map { "\($0) left" }
-        awake.submenu = NSMenu()
-        for (title, minutes) in [("15 minutes", 15), ("30 minutes", 30), ("1 hour", 60), ("2 hours", 120), ("4 hours", 240), ("Until I turn it off", 0)] {
-            if minutes == 0 { awake.submenu?.addItem(.separator()) }
+        // The running keep-awake is checked, and choosing it again stops it. Tag 0 means until turned off.
+        menu.addItem(.sectionHeader(title: "Stay awake"))
+        let always = action("Indefinitely", #selector(keepAwake(_:)))
+        always.tag = 0
+        always.state = model.manualChoice == 0 ? .on : .off
+        menu.addItem(always)
+        let timed = NSMenuItem(title: "For a while", action: nil, keyEquivalent: "")
+        timed.subtitle = model.manualRemaining.map { "\($0) left" }
+        timed.state = (model.manualChoice ?? 0) > 0 ? .on : .off
+        timed.submenu = NSMenu()
+        for (title, minutes) in [("15 minutes", 15), ("30 minutes", 30), ("1 hour", 60), ("2 hours", 120), ("4 hours", 240)] {
             let entry = action(title, #selector(keepAwake(_:)))
             entry.tag = minutes
             entry.state = model.manualChoice == minutes ? .on : .off
-            awake.submenu?.addItem(entry)
+            timed.submenu?.addItem(entry)
         }
-        menu.addItem(awake)
-        let lid = action("Stay awake when lid is closed", #selector(toggleLid))
+        menu.addItem(timed)
+        let lid = action("With lid closed", #selector(toggleLid))
         lid.state = model.lidMode ? .on : .off
         lid.subtitle = model.lidUnavailable ? "Not available on this Mac" : nil
         menu.addItem(lid)
         menu.addItem(.separator())
 
-        // Applies once, then goes back to as usual.
-        menu.addItem(.sectionHeader(title: "When agents finish"))
-        for (title, choice) in [("Sleep as usual", Finish.Action.asUsual), ("Sleep right away", .sleep), ("Shut down", .shutDown)] {
-            let entry = action(title, #selector(chooseFinish(_:)))
-            entry.tag = choice.rawValue
-            entry.state = model.finish.action == choice ? .on : .off
-            if choice == .shutDown, model.shutDownBlocked { entry.subtitle = "Allow in System Settings, Automation" }
-            menu.addItem(entry)
-        }
-        menu.addItem(.separator())
-
         menu.addItem(action("About Until", #selector(showAbout)))
-        menu.addItem(action("Settings…", #selector(openSettings), key: ","))
+        let settings = action("Settings", #selector(openSettings), key: ",")
+        // macOS 27 adds a gear to Settings, which would push its title out of line with the others.
+        if #available(macOS 27, *) { settings.preferredImageVisibility = .hidden }
+        menu.addItem(settings)
         menu.addItem(action("Quit Until", #selector(NSApplication.terminate(_:)), key: "q", target: NSApp))
     }
 
@@ -215,6 +212,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let folder = run.title == run.folder ? "" : run.folder
         let state = ignored ? "ignored" : run.working ? "working" : "quiet"
         entry.subtitle = [tool, folder, state].filter { !$0.isEmpty }.joined(separator: " · ")
+
+        // The same stock green dot as the switch marks each agent that keeps the Mac awake right now.
+        entry.state = run.working && !ignored ? .on : .off
+        entry.onStateImage = NSImage(named: NSImage.statusAvailableName)
 
         let options = NSMenu()
         let keep = action("Keep awake for this agent", #selector(toggleIgnore(_:)))
@@ -247,11 +248,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if model.manualChoice == sender.tag { model.stopKeepingAwake() } else { model.keepAwake(minutes: sender.tag) }
     }
     @objc private func toggleLid() { model.lidMode.toggle() }
-
-    @objc private func chooseFinish(_ sender: NSMenuItem) {
-        guard let choice = Finish.Action(rawValue: sender.tag) else { return }
-        model.chooseFinish(choice)
-    }
 
     @objc private func toggleIgnore(_ sender: NSMenuItem) {
         guard let pid = sender.representedObject as? pid_t, let run = model.runs.first(where: { $0.id == pid }) else { return }
@@ -336,19 +332,19 @@ extension Model {
         }
     }
 
-    /// Green when on, yellow when paused or failing, gray when off. Stock AppKit status images.
-    var statusDot: NSImage.Name {
+    /// On, mixed when paused or failing, off when turned off.
+    var powerState: NSControl.StateValue {
         switch status {
-        case .off: NSImage.statusNoneName
-        case .battery, .hot, .failed: NSImage.statusPartiallyAvailableName
-        default: NSImage.statusAvailableName
+        case .off: .off
+        case .battery, .hot, .failed: .mixed
+        default: .on
         }
     }
 
     var summary: String {
         let agents = workingCount == 1 ? "1 agent working" : "\(workingCount) agents working"
         switch status {
-        case .idle: return finishCountdown.map { "Agents finished, \($0)" } ?? "No agents working"
+        case .idle: return "No agents working"
         case .working: return lidMode ? "\(agents), awake with the lid closed" : "\(agents), Mac stays awake"
         case .manual(let until): return until == .distantFuture ? "Keeping the Mac awake until you stop it" : "Keeping the Mac awake, \(Self.remaining(until)) left"
         case .off: return workingCount > 0 ? "\(agents), Mac may sleep" : "Mac sleeps as usual"
@@ -356,11 +352,6 @@ extension Model {
         case .hot: return "Mac is hot and may sleep"
         case .failed: return "macOS declined to keep the Mac awake"
         }
-    }
-
-    /// The running countdown, such as "Mac shuts down in 45 s".
-    var finishCountdown: String? {
-        finish.due.map { "Mac \(finish.action == .sleep ? "sleeps" : "shuts down") in \(Self.remaining($0))" }
     }
 
     static func remaining(_ date: Date) -> String {
