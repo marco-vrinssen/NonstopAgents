@@ -16,6 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var item: NSStatusItem!
     private let menu = NSMenu()
     private var settings: NSWindow?
+    private var welcome: NSWindow?
     private var menuOpen = false
     private var shownMenu = ""
 
@@ -35,6 +36,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         // macOS slides the item into place after launch; the pill follows to the menu bar's center.
         NotificationCenter.default.addObserver(self, selector: #selector(refresh), name: NSWindow.didMoveNotification, object: item.button?.window)
+        if !model.onboarded { showWelcome() }
+    }
+
+    /// Shown once. Closing it, with Get started or the close button, counts as seen.
+    private func showWelcome() {
+        let window = WelcomeWindow.make(model: model)
+        NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: window, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.model.onboarded = true
+                self?.welcome = nil
+            }
+        }
+        welcome = window
+        present { window }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -137,7 +152,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private var menuSignature: String {
-        model.stateTitle + model.summary + "\(model.manualChoice ?? -1)\(model.manualRemaining ?? "")\(model.lidMode)\(model.lidUnavailable)"
+        model.stateTitle + model.summary + "\(model.manualChoice ?? -1)\(model.manualRemaining ?? "")\(model.lidMode)\(model.lidUnavailable)\(model.claudeAccess)"
             + model.runs.map { "\($0.id)\($0.working)\($0.title)" }.joined()
     }
 
@@ -157,58 +172,71 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(.separator())
 
         if model.runs.isEmpty {
-            let none = NSMenuItem(title: "No agents running", action: nil, keyEquivalent: "")
+            let none = NSMenuItem(title: String(localized: "No agents running"), action: nil, keyEquivalent: "")
             none.isEnabled = false
             menu.addItem(none)
         } else {
-            menu.addItem(.sectionHeader(title: "Agents"))
+            menu.addItem(.sectionHeader(title: String(localized: "Agents")))
             for run in model.runs.prefix(Self.visibleAgents) { menu.addItem(agentItem(run)) }
             let rest = model.runs.dropFirst(Self.visibleAgents)
             if !rest.isEmpty {
-                let more = NSMenuItem(title: "\(rest.count) more", action: nil, keyEquivalent: "")
+                let more = NSMenuItem(title: String(localized: "\(rest.count) more"), action: nil, keyEquivalent: "")
                 more.submenu = NSMenu()
                 for run in rest { more.submenu?.addItem(agentItem(run)) }
                 menu.addItem(more)
+            }
+
+            // Without ~/.claude, Claude Code's state is a guess from CPU use, so the menu asks once.
+            if !model.claudeAccess, model.runs.contains(where: { $0.agent.id == "claude" }) {
+                menu.addItem(action(String(localized: "Allow access to Claude Code…"), #selector(allowClaudeAccess)))
             }
         }
         menu.addItem(.separator())
 
         // The running keep-awake is checked, and choosing it again stops it. Tag 0 means until turned off.
-        menu.addItem(.sectionHeader(title: "Stay awake"))
-        let always = action("Indefinitely", #selector(keepAwake(_:)))
+        menu.addItem(.sectionHeader(title: String(localized: "Stay awake")))
+        let always = action(String(localized: "Indefinitely"), #selector(keepAwake(_:)))
         always.tag = 0
         always.state = model.manualChoice == 0 ? .on : .off
         menu.addItem(always)
-        let timed = NSMenuItem(title: "For a while", action: nil, keyEquivalent: "")
-        timed.subtitle = model.manualRemaining.map { "\($0) left" }
+        let timed = NSMenuItem(title: String(localized: "For a while"), action: nil, keyEquivalent: "")
+        timed.subtitle = model.manualRemaining.map { String(localized: "\($0) left") }
         timed.state = (model.manualChoice ?? 0) > 0 ? .on : .off
         timed.submenu = NSMenu()
-        for (title, minutes) in [("15 minutes", 15), ("30 minutes", 30), ("1 hour", 60), ("2 hours", 120), ("4 hours", 240)] {
-            let entry = action(title, #selector(keepAwake(_:)))
+        for minutes in [15, 30, 60, 120, 240] {
+            let entry = action(Self.duration.string(from: TimeInterval(minutes * 60)) ?? "", #selector(keepAwake(_:)))
             entry.tag = minutes
             entry.state = model.manualChoice == minutes ? .on : .off
             timed.submenu?.addItem(entry)
         }
         menu.addItem(timed)
-        let lid = action("With lid closed", #selector(toggleLid))
+        let lid = action(String(localized: "With lid closed"), #selector(toggleLid))
         lid.state = model.lidMode ? .on : .off
-        lid.subtitle = model.lidUnavailable ? "Not available on this Mac" : nil
+        lid.subtitle = model.lidUnavailable ? String(localized: "Not available on this Mac") : nil
         menu.addItem(lid)
         menu.addItem(.separator())
 
-        menu.addItem(action("About Nonstop Agents", #selector(showAbout)))
-        let settings = action("Settings", #selector(openSettings), key: ",")
+        menu.addItem(action(String(localized: "About Nonstop Agents"), #selector(showAbout)))
+        let settings = action(String(localized: "Settings"), #selector(openSettings), key: ",")
         // macOS 27 adds a gear to Settings, which would push its title out of line with the others.
         if #available(macOS 27, *) { settings.preferredImageVisibility = .hidden }
         menu.addItem(settings)
-        menu.addItem(action("Quit Nonstop Agents", #selector(NSApplication.terminate(_:)), key: "q", target: NSApp))
+        menu.addItem(action(String(localized: "Quit Nonstop Agents"), #selector(NSApplication.terminate(_:)), key: "q", target: NSApp))
     }
+
+    /// Menu durations such as "15 minutes" or "1 hour", in the user's language.
+    private static let duration: DateComponentsFormatter = {
+        let formatter = DateComponentsFormatter()
+        formatter.allowedUnits = [.hour, .minute]
+        formatter.unitsStyle = .full
+        return formatter
+    }()
 
     private func agentItem(_ run: AgentRun) -> NSMenuItem {
         let entry = NSMenuItem(title: run.title, action: nil, keyEquivalent: "")
         let tool = run.title == run.agent.name ? "" : run.agent.name
         let folder = run.title == run.folder ? "" : run.folder
-        entry.subtitle = [tool, folder, run.working ? "working" : "quiet"].filter { !$0.isEmpty }.joined(separator: " · ")
+        entry.subtitle = [tool, folder, run.working ? String(localized: "working", comment: "An agent's state in the menu") : String(localized: "quiet", comment: "An agent's state in the menu")].filter { !$0.isEmpty }.joined(separator: " · ")
 
         // The same stock green dot as the switch marks each agent that keeps the Mac awake right now.
         entry.state = run.working ? .on : .off
@@ -216,19 +244,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         let options = NSMenu()
         if !run.directory.isEmpty, run.directory != "/" {
-            let folderItem = action("Open folder", #selector(openFolder(_:)))
+            let folderItem = action(String(localized: "Open folder"), #selector(openFolder(_:)))
             folderItem.representedObject = run.directory
             options.addItem(folderItem)
         }
         if let app = run.app {
-            let sessionItem = action("Open session", #selector(openSession(_:)))
+            let sessionItem = action(String(localized: "Open session"), #selector(openSession(_:)))
             sessionItem.representedObject = app
             options.addItem(sessionItem)
         }
         if !options.items.isEmpty { options.addItem(.separator()) }
-        let place = run.host.isEmpty ? "" : " in \(run.host)"
-        let info = NSMenuItem(title: "Process \(run.id)\(place), started \(run.started.formatted(.relative(presentation: .named)))",
-                              action: nil, keyEquivalent: "")
+        let pid = String(run.id), started = run.started.formatted(.relative(presentation: .named))
+        let details = run.host.isEmpty ? String(localized: "Process \(pid), started \(started)")
+            : String(localized: "Process \(pid) in \(run.host), started \(started)")
+        let info = NSMenuItem(title: details, action: nil, keyEquivalent: "")
         info.isEnabled = false
         options.addItem(info)
         entry.submenu = options
@@ -246,6 +275,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if model.manualChoice == sender.tag { model.stopKeepingAwake() } else { model.keepAwake(minutes: sender.tag) }
     }
     @objc private func toggleLid() { model.lidMode.toggle() }
+    @objc private func allowClaudeAccess() { model.grantClaudeAccess() }
 
     // The App Sandbox lets Finder reveal a folder but not open it, so Finder shows it selected in its parent.
     @objc private func openFolder(_ sender: NSMenuItem) {
@@ -303,14 +333,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             item.keyEquivalentModifierMask = modifiers
             return item
         }
-        add([entry("Close", #selector(NSWindow.performClose(_:)), "w"),
-             entry("Quit Nonstop Agents", #selector(NSApplication.terminate(_:)), "q")])
-        add([entry("Undo", Selector(("undo:")), "z"),
-             entry("Redo", Selector(("redo:")), "z", [.command, .shift]),
-             entry("Cut", #selector(NSText.cut(_:)), "x"),
-             entry("Copy", #selector(NSText.copy(_:)), "c"),
-             entry("Paste", #selector(NSText.paste(_:)), "v"),
-             entry("Select All", #selector(NSText.selectAll(_:)), "a")])
+        add([entry(String(localized: "Close"), #selector(NSWindow.performClose(_:)), "w"),
+             entry(String(localized: "Quit Nonstop Agents"), #selector(NSApplication.terminate(_:)), "q")])
+        add([entry(String(localized: "Undo"), Selector(("undo:")), "z"),
+             entry(String(localized: "Redo"), Selector(("redo:")), "z", [.command, .shift]),
+             entry(String(localized: "Cut"), #selector(NSText.cut(_:)), "x"),
+             entry(String(localized: "Copy"), #selector(NSText.copy(_:)), "c"),
+             entry(String(localized: "Paste"), #selector(NSText.paste(_:)), "v"),
+             entry(String(localized: "Select All"), #selector(NSText.selectAll(_:)), "a")])
         return bar
     }
 }
@@ -325,13 +355,13 @@ extension Model {
     }
 
     /// The switch title, such as "2 Nonstop Agents working".
-    var switchTitle: String { "\(workingCount) Nonstop \(workingCount == 1 ? "Agent" : "Agents") working" }
+    var switchTitle: String { String(localized: "\(workingCount) Nonstop Agents working") }
 
     var stateTitle: String {
         switch status {
-        case .off: "Nonstop Agents is off"
-        case .battery, .hot: "Nonstop Agents is paused"
-        default: "Nonstop Agents is on"
+        case .off: String(localized: "Nonstop Agents is off")
+        case .battery, .hot: String(localized: "Nonstop Agents is paused")
+        default: String(localized: "Nonstop Agents is on")
         }
     }
 
@@ -345,21 +375,30 @@ extension Model {
     }
 
     var summary: String {
-        let agents = workingCount == 1 ? "1 agent working" : "\(workingCount) agents working"
+        let agents = String(localized: "\(workingCount) agents working")
         switch status {
-        case .idle: return "No agents working"
-        case .working: return lidMode ? "\(agents), awake with the lid closed" : "\(agents), Mac stays awake"
-        case .manual(let until): return until == .distantFuture ? "Keeping the Mac awake until you stop it" : "Keeping the Mac awake, \(Self.remaining(until)) left"
-        case .off: return workingCount > 0 ? "\(agents), Mac may sleep" : "Mac sleeps as usual"
-        case .battery(let level): return "Battery at \(level)%, Mac may sleep"
-        case .hot: return "Mac is hot and may sleep"
-        case .failed: return "macOS declined to keep the Mac awake"
+        case .idle: return String(localized: "No agents working")
+        case .working: return lidMode ? String(localized: "\(agents), awake with the lid closed") : String(localized: "\(agents), Mac stays awake")
+        case .manual(let until):
+            return until == .distantFuture ? String(localized: "Keeping the Mac awake until you stop it")
+                : String(localized: "Keeping the Mac awake, \(Self.remaining(until)) left")
+        case .off: return workingCount > 0 ? String(localized: "\(agents), Mac may sleep") : String(localized: "Mac sleeps as usual")
+        case .battery(let level): return String(localized: "Battery at \(level)%, Mac may sleep")
+        case .hot: return String(localized: "Mac is hot and may sleep")
+        case .failed: return String(localized: "macOS declined to keep the Mac awake")
         }
     }
 
+    /// Time left such as "1 hr, 30 min" or "45 sec", in the user's language.
     static func remaining(_ date: Date) -> String {
-        let seconds = max(0, Int(date.timeIntervalSinceNow.rounded()))
-        return seconds >= 3600 ? "\(seconds / 3600) h \(seconds % 3600 / 60) min"
-            : seconds >= 60 ? "\(seconds / 60) min" : "\(seconds) s"
+        remainingFormatter.string(from: max(0, date.timeIntervalSinceNow.rounded())) ?? ""
     }
+
+    private static let remainingFormatter: DateComponentsFormatter = {
+        let formatter = DateComponentsFormatter()
+        formatter.allowedUnits = [.hour, .minute, .second]
+        formatter.unitsStyle = .abbreviated
+        formatter.maximumUnitCount = 2
+        return formatter
+    }()
 }

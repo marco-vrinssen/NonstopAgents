@@ -1,8 +1,7 @@
 import AppKit
 import SwiftUI
 
-/// Text typed into the settings window. A class rather than @State, whose macro
-/// plugin ships only with Xcode and not with the Command Line Tools.
+/// Text typed into the settings window.
 @MainActor
 @Observable
 final class SettingsDraft {
@@ -17,8 +16,8 @@ enum SettingsWindow {
     static func make(model: Model) -> NSWindow {
         let draft = SettingsDraft()
         let panes: [(String, String, AnyView)] = [
-            ("General", "gearshape", AnyView(GeneralPane(model: model, draft: draft))),
-            ("Agents", "sparkles", AnyView(AgentsPane(model: model, draft: draft))),
+            (String(localized: "General"), "gearshape", AnyView(GeneralPane(model: model, draft: draft))),
+            (String(localized: "Agents"), "sparkles", AnyView(AgentsPane(model: model, draft: draft))),
         ]
         let tabs = NSTabViewController()
         tabs.tabStyle = .toolbar
@@ -77,11 +76,14 @@ private struct GeneralPane: View {
 
             Section("Sleep exceptions") {
                 Picker(selection: $model.batteryFloor) {
-                    ForEach(Array(stride(from: 5, through: 50, by: 5)), id: \.self) { Text("\($0)%").tag($0) }
+                    ForEach(Array(stride(from: 5, through: 50, by: 5)), id: \.self) { Text(Self.percent($0)).tag($0) }
                 } label: {
                     Text("Let Mac sleep when reaching this battery level")
-                    Text(model.battery.level.map { "Applies on battery, also with the lid closed. Now at \($0)%." }
-                         ?? "Applies on battery. This Mac has none.")
+                    if let level = model.battery.level {
+                        Text("Applies on battery, also with the lid closed. Now at \(Self.percent(level)).")
+                    } else {
+                        Text("Applies on battery. This Mac has none.")
+                    }
                 }
                 Toggle(isOn: Binding(get: { model.thermalGuard }, set: { on in
                     // Turning it off can let a closed Mac overheat, so that needs a confirmation.
@@ -101,6 +103,11 @@ private struct GeneralPane: View {
             Text("Nonstop Agents will no longer let the Mac sleep when it runs hot. Closed in a bag, it can overheat.")
         }
     }
+
+    /// A battery level such as "20%" or "20 %", as the user's language writes it.
+    private static func percent(_ value: Int) -> String {
+        (Double(value) / 100).formatted(.percent)
+    }
 }
 
 private struct AgentsPane: View {
@@ -117,7 +124,6 @@ private struct AgentsPane: View {
                 Text("An agent counts while it works, not while it waits for you.")
             }
 
-            #if APPSTORE
             Section {
                 LabeledContent("Status files") {
                     if model.claudeAccess {
@@ -129,9 +135,8 @@ private struct AgentsPane: View {
             } header: {
                 Text("Claude Code")
             } footer: {
-                Text("Lets Nonstop Agents read each Claude Code session's state and title.")
+                Text("Lets Nonstop Agents read each Claude Code session's state and title, read-only.")
             }
-            #endif
 
             Section {
                 ForEach(Agent.all.filter { $0.binaries.isEmpty && !$0.apps.isEmpty }) { toggle($0) }
@@ -152,7 +157,7 @@ private struct AgentsPane: View {
                     }
                 }
                 HStack {
-                    TextField("Process name", text: $draft.newName, prompt: Text("my-agent"))
+                    TextField("Process name", text: $draft.newName, prompt: Text(verbatim: "my-agent"))
                         .onSubmit(add)
                     Button("Add", action: add)
                         .disabled(draft.newName.trimmingCharacters(in: .whitespaces).isEmpty)
