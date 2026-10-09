@@ -44,7 +44,7 @@ private struct WelcomeView: View {
                 point("sparkle", "Lives in the menu bar",
                       "The sparkle shows how many agents are working. Click it to turn Nonstop Agents on or off, right-click for the menu.")
                 point("lock", "Stays on your Mac",
-                      "Nonstop Agents sees which agents are running and, for Claude Code, each session's status and title. It reads nothing else and sends nothing anywhere.")
+                      "Nonstop Agents sees which agents are running and, for Claude Code, each session's status and title. It reads nothing else and sends nothing. Once a day it asks GitHub for a new version, which you can turn off in Settings.")
                 point("battery.50percent", "Lets your Mac rest",
                       "Your Mac still sleeps on low battery or when it runs hot. It stays awake with the lid closed only if you choose that in the menu.")
 
