@@ -7,37 +7,34 @@ Keeps your Mac awake while AI agents work, lid closed included, so they run nons
 - The menu bar shows a pill with the number of working agents, the sparkle, and the time left on a timed keep-awake cut out of it. Dimmed means the app is off or paused.
 - Click the sparkle to turn the app on or off.
 - Right-click for the menu: the number of working agents, every agent named after its task with a green dot while it works and its folder and session one click away, stay awake indefinitely or for a while, with the lid closed, settings.
-- Two editions from one codebase: App Store (sandboxed) and Direct (Developer ID).
+- A welcome window on first launch says what the app does and what it reads, and offers opening at login and notifications. Both are off until you choose them, and macOS asks for notifications only then.
+- In English, German, Spanish and French.
 
 ## Build
 
-Xcode is not required. The Command Line Tools build and sign a runnable app.
+Open `NonstopAgents.xcodeproj` in Xcode 26 or later and run the "Nonstop Agents" scheme, or use the script, which calls `xcodebuild`:
 
 | Command | Result |
 | --- | --- |
-| `./build.sh` | Direct edition at `build/Nonstop Agents.app` |
-| `./build.sh run` | Builds the direct edition and launches it |
-| `./build.sh appstore` | Sandboxed App Store edition at `build/AppStore/Nonstop Agents.app` |
+| `./build.sh` | The app at `build/Nonstop Agents.app`, signed ad hoc with its sandbox entitlements |
+| `./build.sh run` | Builds and launches it |
 | `./build.sh check` | Runs the detection self-check |
 | `./build.sh check --live` | Prints this Mac's agents and their state every 5 seconds |
 | `./build.sh icon` | Renders `Design/Icon/AppIcon.svg` into the app icon set |
 
-Builds are universal (Apple Silicon and Intel), need macOS 15 or later, and are signed ad hoc. For distribution, open `NonstopAgents.xcodeproj` in Xcode 26 or later and pick a scheme:
+Builds are universal (Apple Silicon and Intel) and need macOS 15 or later. For App Store Connect, set your team under Signing and Capabilities and archive the scheme in Xcode. The version lives in `Config/Info.plist`, the bundle ID `com.marcovrinssen.nonstopagents` in the Xcode project.
 
-| Scheme | Runs | Archives |
-| --- | --- | --- |
-| Nonstop Agents | App Store edition | Release, sandboxed, for App Store Connect |
-| Nonstop Agents Direct | Direct edition | Direct, hardened runtime, for Developer ID and notarization |
+## Sandbox
 
-Set your team under Signing and Capabilities before archiving. The version lives in `Config/Info.plist`. The bundle IDs are `com.marcovrinssen.nonstopagents` for the App Store and `com.marcovrinssen.nonstopagents.direct` for Direct, set in `build.sh` and the Xcode project.
+The app is sandboxed, as the Mac App Store requires.
 
-## Editions
-
-| Feature | App Store | Direct |
-| --- | --- | --- |
-| Agent detection | Yes | Yes |
-| Stay awake with lid closed | Yes, through IOKit, no password | Yes, through IOKit, no password |
-| Claude Code status and titles | After the user grants access to `~/.claude` | Automatic |
+| Feature | How |
+| --- | --- |
+| Agent detection | The process table, readable inside the sandbox for the user's own processes |
+| Stay awake with lid closed | IOKit, no password |
+| Claude Code status and titles | A read-only sandbox exception for `~/.claude`. If App Review declines it, the user allows access once, from the welcome window or the menu |
+| Open folder | Finder reveals the folder; the sandbox doesn't let the app open it |
+| Open session | Brings the agent's app to the front, without picking a window or tab |
 
 Plugging the charger in or out with the lid closed can still put some Apple Silicon Macs to sleep. A root `pmset` helper would cover it, but App Review rule 2.4.5(v) forbids root helpers, so Nonstop Agents has none.
 
@@ -77,7 +74,7 @@ An editor, terminal or agent that is merely open never counts.
 
 | Path | Contents |
 | --- | --- |
-| `NonstopAgents/` | App sources and the app icon |
-| `Config/` | `Info.plist` and the two entitlement files |
+| `NonstopAgents/` | App sources, the app icon and `Localizable.xcstrings` with every string in four languages |
+| `Config/` | `Info.plist` and the entitlements |
 | `Checks/` | Detection self-check and live monitor |
-| `DESIGN.md` | Design language for the dot, menu and settings |
+| `DESIGN.md` | Design language for the menu bar, menu, settings and welcome window |

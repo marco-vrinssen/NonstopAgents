@@ -60,6 +60,8 @@ final class Model {
     var notifyHeat = Model.load("notifyHeat", true) { didSet { save("notifyHeat", notifyHeat) } }
     var disabledAgents = Set(Model.load("disabledAgents", [String]())) { didSet { save("disabledAgents", Array(disabledAgents)); rescan() } }
     var customAgents = Model.load("customAgents", [String]()) { didSet { save("customAgents", customAgents); rescan() } }
+    /// The welcome window has been shown and closed.
+    var onboarded = Model.load("onboarded", false) { didSet { save("onboarded", onboarded) } }
 
     // Live state.
     private(set) var runs: [AgentRun] = []
@@ -113,7 +115,6 @@ final class Model {
         NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.rescan() }
         }
-        requestNotifications()
         rescan()
     }
 
@@ -248,7 +249,13 @@ final class Model {
 
     /// Claude Code's status files live in ~/.claude, outside the App Sandbox container.
     private func openClaudeFolder() {
-        #if APPSTORE
+        // A read-only sandbox exception opens ~/.claude without asking. If App Review removes it, the folder the user allowed once takes over.
+        let home = URL(fileURLWithPath: realHome).appendingPathComponent(".claude")
+        if (try? FileManager.default.contentsOfDirectory(atPath: home.path)) != nil {
+            ClaudeSessions.folder = home
+            claudeAccess = true
+            return
+        }
         guard let data = UserDefaults.standard.data(forKey: "claudeFolder") else { return }
         var stale = false
         guard let url = try? URL(resolvingBookmarkData: data, options: .withSecurityScope, relativeTo: nil, bookmarkDataIsStale: &stale),
@@ -257,17 +264,13 @@ final class Model {
             UserDefaults.standard.set(fresh, forKey: "claudeFolder")
         }
         ClaudeSessions.folder = url.lastPathComponent == ".claude" ? url : url.appendingPathComponent(".claude")
-        #else
-        ClaudeSessions.folder = URL(fileURLWithPath: realHome).appendingPathComponent(".claude")
-        #endif
         claudeAccess = true
     }
 
-    #if APPSTORE
     func grantClaudeAccess() {
         let panel = NSOpenPanel()
-        panel.message = "Choose the .claude folder in your home folder so Nonstop Agents can read what Claude Code is working on."
-        panel.prompt = "Allow"
+        panel.message = String(localized: "Choose the .claude folder in your home folder so Nonstop Agents can read what Claude Code is working on. Access is read-only.")
+        panel.prompt = String(localized: "Allow")
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.showsHiddenFiles = true
@@ -279,7 +282,6 @@ final class Model {
         openClaudeFolder()
         rescan()
     }
-    #endif
 
     // MARK: Lid
 
@@ -306,7 +308,7 @@ final class Model {
 
     // MARK: Notifications
 
-    /// Asks macOS once for permission; after that macOS answers from the user's choice.
+    /// Asks macOS once for permission, only after the user turned notifications on; after that macOS answers from the user's choice.
     func requestNotifications() {
         guard notificationsEnabled else { return }
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert]) { [weak self] _, _ in
@@ -325,11 +327,11 @@ final class Model {
     private func notifyTransitions(count: Int, lowBattery: Bool, hot: Bool) {
         // Only when nobody is at the Mac; at the desk the count already says it.
         let away = CGEventSource.secondsSinceLastEventType(.hidSystemState, eventType: CGEventType(rawValue: ~0)!) > 120
-        if notifyFinished, wasWorking, count == 0, away { post("Agents finished", "Your Mac can sleep now.") }
+        if notifyFinished, wasWorking, count == 0, away { post(String(localized: "Agents finished"), String(localized: "Your Mac can sleep now.")) }
         wasWorking = count > 0
-        if notifyBattery, lowBattery, !notifiedBattery { post("Nonstop Agents paused", "Battery is at \(battery.level ?? 0)%. Your Mac can sleep now.") }
+        if notifyBattery, lowBattery, !notifiedBattery { post(String(localized: "Nonstop Agents paused"), String(localized: "Battery is at \(battery.level ?? 0)%. Your Mac can sleep now.")) }
         notifiedBattery = lowBattery
-        if notifyHeat, hot, !notifiedHeat { post("Nonstop Agents paused", "Your Mac is hot. It can sleep now.") }
+        if notifyHeat, hot, !notifiedHeat { post(String(localized: "Nonstop Agents paused"), String(localized: "Your Mac is hot. It can sleep now.")) }
         notifiedHeat = hot
     }
 
