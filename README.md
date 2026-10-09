@@ -2,6 +2,17 @@
 
 Keeps your Mac awake while AI agents work, lid closed included, so they run nonstop. A sparkle in the menu bar counts the working agents. When they finish, macOS sleeps on its own schedule again.
 
+## Install
+
+Nonstop Agents is free while it's being tested. It needs macOS 15 or later.
+
+1. Download `NonstopAgents-1.0.zip` from the [latest release](../../releases/latest) and unzip it.
+2. Move "Nonstop Agents" to your Applications folder and open it.
+3. macOS says it can't check the app for malware, because the app isn't notarized by Apple, which needs a paid developer account. Click Done.
+4. Open System Settings, then Privacy & Security, scroll down to Security and click "Open Anyway" next to Nonstop Agents. Confirm with your password.
+
+From then on it opens normally. To see exactly what it does first, read the code here or build it yourself, as described under Build. For an update, download the new release and replace the app.
+
 ## In short
 
 - The menu bar shows a pill with the number of working agents, the sparkle, and the time left on a timed keep-awake cut out of it. Dimmed means the app is off or paused.
@@ -18,6 +29,7 @@ Open `NonstopAgents.xcodeproj` in Xcode 26 or later and run the "Nonstop Agents"
 | --- | --- |
 | `./build.sh` | The app at `build/Nonstop Agents.app`, signed ad hoc with its sandbox entitlements |
 | `./build.sh run` | Builds and launches it |
+| `./build.sh release` | A universal Release build, zipped as `build/NonstopAgents-<version>.zip` for a GitHub release |
 | `./build.sh check` | Runs the detection self-check |
 | `./build.sh check --live` | Prints this Mac's agents and their state every 5 seconds |
 | `./build.sh icon` | Renders `Design/Icon/AppIcon.svg` into the app icon set |
@@ -78,3 +90,7 @@ An editor, terminal or agent that is merely open never counts.
 | `Config/` | `Info.plist` and the entitlements |
 | `Checks/` | Detection self-check and live monitor |
 | `DESIGN.md` | Design language for the menu bar, menu, settings and welcome window |
+
+## License
+
+Copyright 2026 Marco Vrinssen. All rights reserved. You may read the code and build the app for your own use, but not copy, redistribute or sell it. See `LICENSE`.
