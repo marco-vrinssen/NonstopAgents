@@ -41,7 +41,10 @@ case "${1:-}" in
         rm -rf build/release
         build Release "generic/platform=macOS" build/release
         ditto -c -k --keepParent "build/release/Nonstop Agents.app" "build/NonstopAgents-$version.zip"
-        echo "Zipped build/NonstopAgents-$version.zip"
+
+        # The unversioned copy keeps the README's install command working for every release.
+        cp "build/NonstopAgents-$version.zip" build/NonstopAgents.zip
+        echo "Zipped build/NonstopAgents-$version.zip and build/NonstopAgents.zip"
         ;;
     *) build Debug "platform=macOS,arch=arm64" build ;;
 esac
