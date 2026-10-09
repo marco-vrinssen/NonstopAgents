@@ -8,7 +8,7 @@
 - No settings that change macOS sleep beyond holding idle sleep.
 - The app icon is the app's own sparkle. Never put an SF Symbol or a look-alike in the app icon or a logo; Apple's terms forbid it.
 - In the App Sandbox, `NSWorkspace.open` and `selectFile(_:inFileViewerRootedAtPath:)` can't show a folder outside the container, but `activateFileViewerSelecting` and `openApplication(at:)` work. Tested on 2026-10-08.
-- Every user-facing string goes through `String(localized:)` or a SwiftUI literal and has German, Spanish and French in `NonstopAgents/Localizable.xcstrings`. `xcodebuild -exportLocalizations` lists every key the code uses.
+- Every user-facing string goes through `String(localized:)` or a SwiftUI literal and has German, Spanish and French in `NonstopAgents/Localizable.xcstrings`. `xcodebuild -exportLocalizations` lists every key the code uses, but only with an empty catalog; otherwise it also lists the catalog's own and stale entries.
 - There is one edition, the sandboxed App Store app. Build it with Xcode or `./build.sh`.
 
 ## Checks
@@ -24,8 +24,10 @@
 
 ## Release
 
-Releases are free GitHub releases of an ad hoc signed build, because there is no paid Apple developer account. Never sign with the Frans Health GmbH team.
+Releases are free GitHub releases of an ad hoc signed build, because there is no paid Apple developer account. Never sign with the Frans Health GmbH team. Sparkle installs updates and verifies them with the EdDSA key in Marco's login keychain; its public half is `SUPublicEDKey` in `Config/Info.plist`.
 
-1. Raise `CFBundleShortVersionString` and `CFBundleVersion` in `Config/Info.plist`.
-2. Run `./build.sh release`.
-3. Run `gh release create v<version> build/NonstopAgents-<version>.zip build/NonstopAgents.zip --title "Nonstop Agents <version>"` with short notes. The unversioned zip keeps the README's Terminal install working.
+1. Raise `CFBundleShortVersionString` and `CFBundleVersion` in `Config/Info.plist`. Sparkle compares `CFBundleVersion`, so it must grow with every release.
+2. Write the release notes as a short HTML list in `Releases/<version>.html`.
+3. Run `./build.sh release`. It writes both zips and `build/appcast.xml`.
+4. Run `gh release create v<version> build/NonstopAgents-<version>.zip build/NonstopAgents.zip build/appcast.xml --title "Nonstop Agents <version>"` with short notes. The app reads `appcast.xml` from the latest release, and the unversioned zip keeps the README's Terminal install working.
+5. Test an update end to end before publishing: serve `build/appcast` locally with an `http://localhost` download prefix, point a lower-versioned build at it with `defaults write <container path> SUFeedURL`, and remove that key afterwards.

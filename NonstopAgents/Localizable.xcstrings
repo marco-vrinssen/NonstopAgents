@@ -571,6 +571,50 @@
         }
       }
     },
+    "Automatically check for updates" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automatisch nach Updates suchen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Buscar actualizaciones automáticamente"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rechercher automatiquement les mises à jour"
+          }
+        }
+      }
+    },
+    "Automatically install updates" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Updates automatisch installieren"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Instalar actualizaciones automáticamente"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Installer automatiquement les mises à jour"
+          }
+        }
+      }
+    },
     "Battery at %lld%%, Mac may sleep" : {
       "localizations" : {
         "de" : {
@@ -637,6 +681,28 @@
         }
       }
     },
+    "Check for updates…" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nach Updates suchen …"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Buscar actualizaciones…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rechercher des mises à jour…"
+          }
+        }
+      }
+    },
     "Choose the .claude folder in your home folder so Nonstop Agents can read what Claude Code is working on. Access is read-only." : {
       "localizations" : {
         "de" : {
@@ -655,6 +721,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Choisissez le dossier .claude dans votre dossier de départ pour que Nonstop Agents puisse lire sur quoi travaille Claude Code. L’accès est en lecture seule."
+          }
+        }
+      }
+    },
+    "Choose “Update to %@…” in the menu to install it." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wähle „Auf %@ aktualisieren …“ im Menü, um es zu installieren."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elige «Actualizar a %@…» en el menú para instalarla."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choisissez « Mettre à jour vers %@… » dans le menu pour l’installer."
           }
         }
       }
@@ -1187,6 +1275,50 @@
         }
       }
     },
+    "Nonstop Agents %@ is available" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nonstop Agents %@ ist verfügbar"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nonstop Agents %@ está disponible"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nonstop Agents %@ est disponible"
+          }
+        }
+      }
+    },
+    "Nonstop Agents asks GitHub once a day. Updates install the next time it quits or your Mac restarts. This is version %@." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nonstop Agents fragt einmal am Tag bei GitHub nach. Updates werden installiert, wenn die App das nächste Mal beendet wird oder dein Mac neu startet. Dies ist Version %@."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nonstop Agents consulta GitHub una vez al día. Las actualizaciones se instalan la próxima vez que se cierre la app o se reinicie tu Mac. Esta es la versión %@."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nonstop Agents consulte GitHub une fois par jour. Les mises à jour s’installent la prochaine fois que l’app quitte ou que votre Mac redémarre. Ceci est la version %@."
+          }
+        }
+      }
+    },
     "Nonstop Agents is off" : {
       "localizations" : {
         "de" : {
@@ -1275,24 +1407,24 @@
         }
       }
     },
-    "Nonstop Agents sees which agents are running and, for Claude Code, each session's status and title. It reads nothing else and sends nothing anywhere." : {
+    "Nonstop Agents sees which agents are running and, for Claude Code, each session's status and title. It reads nothing else and sends nothing. Once a day it asks GitHub for a new version, which you can turn off in Settings." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Nonstop Agents sieht, welche Agenten laufen, und bei Claude Code Status und Titel jeder Sitzung. Es liest nichts anderes und sendet nichts irgendwohin."
+            "value" : "Nonstop Agents sieht, welche Agenten laufen, und bei Claude Code Status und Titel jeder Sitzung. Es liest nichts anderes und sendet nichts. Einmal am Tag fragt es GitHub nach einer neuen Version, was du in den Einstellungen ausschalten kannst."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Nonstop Agents ve qué agentes se están ejecutando y, en Claude Code, el estado y el título de cada sesión. No lee nada más ni envía nada a ninguna parte."
+            "value" : "Nonstop Agents ve qué agentes se están ejecutando y, en Claude Code, el estado y el título de cada sesión. No lee nada más ni envía nada. Una vez al día consulta GitHub por una nueva versión, algo que puedes desactivar en Ajustes."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Nonstop Agents voit quels agents sont en cours et, pour Claude Code, l’état et le titre de chaque session. Il ne lit rien d’autre et n’envoie rien nulle part."
+            "value" : "Nonstop Agents voit quels agents sont en cours et, pour Claude Code, l’état et le titre de chaque session. Il ne lit rien d’autre et n’envoie rien. Une fois par jour, il consulte GitHub pour une nouvelle version, ce que vous pouvez désactiver dans les réglages."
           }
         }
       }
@@ -1887,6 +2019,50 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Annuler"
+          }
+        }
+      }
+    },
+    "Update to %@…" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auf %@ aktualisieren …"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Actualizar a %@…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mettre à jour vers %@…"
+          }
+        }
+      }
+    },
+    "Updates" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Updates"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Actualizaciones"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mises à jour"
           }
         }
       }

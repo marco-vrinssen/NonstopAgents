@@ -39,7 +39,15 @@ Every title starts at the same edge. Marks sit in the state column, where checkm
 1. The switch: the number of working agents, such as "2 Nonstop Agents working", without a subtitle. Its state column shows a green status image when on and a yellow one when paused, and stays empty when off. Clicking it turns the app on or off. While it is on, the Mac stays awake until the last agent finishes.
 2. Agents: a section header and up to 10 agent items, working ones first. Each agent that keeps the Mac awake right now carries the same green status image. More agents go into an "N more" submenu, which macOS scrolls when it gets long; a menu cannot scroll one section on its own. The title is the task: a Claude Code conversation title, else the project folder, else the tool. The subtitle is tool, folder and working or quiet. Each agent has a submenu with "Open folder", which reveals its folder in Finder, "Open session", which brings the app it runs in to the front, and its process and host app. When the app can't read `~/.claude`, "Allow access to Claude Code…" follows the agents while Claude Code runs.
 3. "Stay awake": a section header with "Indefinitely", "For a while" and "With lid closed" as checkmark items. "For a while" has a submenu of durations from 15 minutes to 4 hours, and its subtitle shows the time left. The running choice is checked, and choosing it again stops it.
-4. App, without a header: "About Nonstop Agents" (the standard About window), "Settings" with Command-comma, "Quit Nonstop Agents" with Command-Q. macOS 27 adds a gear to Settings; the app hides it so the title lines up.
+4. App, without a header: "About Nonstop Agents" (the standard About window), "Check for updates…", "Settings" with Command-comma, "Quit Nonstop Agents" with Command-Q. macOS 27 adds a gear to Settings; the app hides it so the title lines up.
+
+## Updates
+
+Sparkle 2 handles updates with its standard window, localized by Sparkle.
+
+- "Check for updates…" opens Sparkle's check. Its window shows the new version, the release notes from `Releases/<version>.html`, and "Install Update".
+- A check at launch shows Sparkle's window right away, since the app counts as in focus then. A later background check stays quiet: the menu item turns into "Update to 1.2…" and a notification says so, until the user opens it.
+- Settings, General, Updates: "Automatically check for updates", on by default, and "Automatically install updates", off by default. With the second on, Sparkle installs downloaded updates when the app quits or the Mac restarts.
 
 ## Settings
 

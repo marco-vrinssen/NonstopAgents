@@ -1,8 +1,9 @@
 import AppKit
+import Sparkle
 
 @main
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @preconcurrency SPUStandardUserDriverDelegate {
     static func main() {
         if CommandLine.arguments.contains("--lid-guard") { Clamshell.runGuard() }
         let app = NSApplication.shared
@@ -17,11 +18,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let menu = NSMenu()
     private var settings: NSWindow?
     private var welcome: NSWindow?
+    private var updater: SPUStandardUpdaterController!
+    private var updateOptions: UpdateOptions?
+    /// A version found by a background check, offered in the menu until the user looks at it.
+    private var availableUpdate: String?
     private var menuOpen = false
     private var shownMenu = ""
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         model = Model()
+        updater = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: self)
         NSApp.mainMenu = Self.keyMenu()
         item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = item.button {
@@ -152,7 +158,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private var menuSignature: String {
-        model.stateTitle + model.summary + "\(model.manualChoice ?? -1)\(model.manualRemaining ?? "")\(model.lidMode)\(model.lidUnavailable)\(model.claudeAccess)"
+        model.stateTitle + model.summary + "\(model.manualChoice ?? -1)\(model.manualRemaining ?? "")\(model.lidMode)\(model.lidUnavailable)\(model.claudeAccess)\(availableUpdate ?? "")"
             + model.runs.map { "\($0.id)\($0.working)\($0.title)" }.joined()
     }
 
@@ -217,6 +223,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(.separator())
 
         menu.addItem(action(String(localized: "About Nonstop Agents"), #selector(showAbout)))
+        let update = availableUpdate.map { String(localized: "Update to \($0)…") } ?? String(localized: "Check for updates…")
+        menu.addItem(action(update, #selector(checkForUpdates)))
         let settings = action(String(localized: "Settings"), #selector(openSettings), key: ",")
         // macOS 27 adds a gear to Settings, which would push its title out of line with the others.
         if #available(macOS 27, *) { settings.preferredImageVisibility = .hidden }
@@ -289,10 +297,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NSWorkspace.shared.openApplication(at: app, configuration: NSWorkspace.OpenConfiguration())
     }
 
+    // MARK: Updates
+
+    @objc private func checkForUpdates() {
+        updater.checkForUpdates(nil)
+    }
+
+    // A menu bar app shouldn't pop up a window after a background check, so the menu and a notification offer the update.
+    var supportsGentleScheduledUpdateReminders: Bool { true }
+
+    func standardUserDriverShouldHandleShowingScheduledUpdate(_ update: SUAppcastItem, andInImmediateFocus immediateFocus: Bool) -> Bool {
+        immediateFocus
+    }
+
+    func standardUserDriverWillHandleShowingUpdate(_ handleShowingUpdate: Bool, forUpdate update: SUAppcastItem, state: SPUUserUpdateState) {
+        guard !state.userInitiated else { return }
+        availableUpdate = update.displayVersionString
+        if !handleShowingUpdate { model.notifyUpdate(update.displayVersionString) }
+        refresh()
+    }
+
+    func standardUserDriverDidReceiveUserAttention(forUpdate update: SUAppcastItem) {
+        availableUpdate = nil
+    }
+
+    func standardUserDriverWillFinishUpdateSession() {
+        availableUpdate = nil
+    }
+
     // MARK: Settings
 
     @objc private func openSettings() {
-        if settings == nil { settings = SettingsWindow.make(model: model) }
+        if settings == nil {
+            let options = UpdateOptions(updater: updater.updater)
+            updateOptions = options
+            settings = SettingsWindow.make(model: model, updates: options)
+        }
         present { self.settings }
     }
 

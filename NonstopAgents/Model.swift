@@ -335,6 +335,11 @@ final class Model {
         notifiedHeat = hot
     }
 
+    /// Announces an update found by a background check; the menu offers it too.
+    func notifyUpdate(_ version: String) {
+        post(String(localized: "Nonstop Agents \(version) is available"), String(localized: "Choose “Update to \(version)…” in the menu to install it."))
+    }
+
     private func post(_ title: String, _ body: String) {
         guard notificationsEnabled else { return }
         let content = UNMutableNotificationContent()
