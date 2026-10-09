@@ -21,3 +21,11 @@
 - A menu item with a subtitle has the accessibility name "title, subtitle". Script the menu with that name.
 - Once the app has saved a setting, `defaults write com.marcovrinssen.nonstopagents` writes into its sandbox container. Before that it writes to `~/Library/Preferences`, which the sandboxed app never reads, so write to `~/Library/Containers/com.marcovrinssen.nonstopagents/Data/Library/Preferences/com.marcovrinssen.nonstopagents` instead.
 - Show the welcome window again with `defaults write <container path from above> onboarded -bool false`, and pick a language with `open "build/Nonstop Agents.app" --args -AppleLanguages "(de)"`.
+
+## Release
+
+Releases are free GitHub releases of an ad hoc signed build, because there is no paid Apple developer account. Never sign with the Frans Health GmbH team.
+
+1. Raise `CFBundleShortVersionString` and `CFBundleVersion` in `Config/Info.plist`.
+2. Run `./build.sh release`.
+3. Run `gh release create v<version> build/NonstopAgents-<version>.zip build/NonstopAgents.zip --title "Nonstop Agents <version>"` with short notes. The unversioned zip keeps the README's Terminal install working.
