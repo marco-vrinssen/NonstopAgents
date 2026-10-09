@@ -1,3 +1,5 @@
+<img src="NonstopAgents/Assets.xcassets/AppIcon.appiconset/icon_256x256.png" width="128" height="128" alt="Nonstop Agents app icon">
+
 # Nonstop Agents
 
 Keeps your Mac awake while AI agents work, lid closed included, so they run nonstop. A sparkle in the menu bar counts the working agents. When they finish, macOS sleeps on its own schedule again.
