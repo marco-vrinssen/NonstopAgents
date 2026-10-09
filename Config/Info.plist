@@ -36,5 +36,13 @@
 	<string>© 2026 Marco Vrinssen</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUEnableInstallerLauncherService</key>
+	<true/>
+	<key>SUFeedURL</key>
+	<string>https://github.com/marco-vrinssen/NonstopAgents/releases/latest/download/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>hL6Myn13ocU0HK3SUmRVUBko9SY19dIh4P2TtMFExzU=</string>
 </dict>
 </plist>

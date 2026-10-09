@@ -1,4 +1,5 @@
 import AppKit
+import Sparkle
 import SwiftUI
 
 /// Text typed into the settings window.
@@ -9,14 +10,29 @@ final class SettingsDraft {
     var confirmHeatOff = false
 }
 
+/// The update options. Sparkle keeps them in the app's defaults.
+@MainActor
+@Observable
+final class UpdateOptions {
+    @ObservationIgnored private let updater: SPUUpdater
+    var automaticChecks: Bool { didSet { updater.automaticallyChecksForUpdates = automaticChecks } }
+    var automaticInstall: Bool { didSet { updater.automaticallyDownloadsUpdates = automaticInstall } }
+
+    init(updater: SPUUpdater) {
+        self.updater = updater
+        automaticChecks = updater.automaticallyChecksForUpdates
+        automaticInstall = updater.automaticallyDownloadsUpdates
+    }
+}
+
 /// The settings window: toolbar tabs, the native macOS settings layout, one grouped form per tab.
 /// Only lasting options live here; the controls are in the menu bar menu.
 @MainActor
 enum SettingsWindow {
-    static func make(model: Model) -> NSWindow {
+    static func make(model: Model, updates: UpdateOptions) -> NSWindow {
         let draft = SettingsDraft()
         let panes: [(String, String, AnyView)] = [
-            (String(localized: "General"), "gearshape", AnyView(GeneralPane(model: model, draft: draft))),
+            (String(localized: "General"), "gearshape", AnyView(GeneralPane(model: model, draft: draft, updates: updates))),
             (String(localized: "Agents"), "sparkles", AnyView(AgentsPane(model: model, draft: draft))),
         ]
         let tabs = NSTabViewController()
@@ -43,6 +59,7 @@ enum SettingsWindow {
 private struct GeneralPane: View {
     @Bindable var model: Model
     @Bindable var draft: SettingsDraft
+    @Bindable var updates: UpdateOptions
 
     var body: some View {
         Form {
@@ -92,6 +109,19 @@ private struct GeneralPane: View {
                     Text("Let Mac sleep when reaching high temperatures")
                     Text("Applies when macOS reports high temperatures, sooner with the lid closed.")
                 }
+            }
+
+            Section {
+                Group {
+                    Toggle("Automatically check for updates", isOn: $updates.automaticChecks)
+                    Toggle("Automatically install updates", isOn: $updates.automaticInstall)
+                        .disabled(!updates.automaticChecks)
+                }
+                .toggleStyle(.checkbox)
+            } header: {
+                Text("Updates")
+            } footer: {
+                Text("Nonstop Agents asks GitHub once a day. Updates install the next time it quits or your Mac restarts. This is version \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "").")
             }
         }
         .pane()

@@ -10,13 +10,13 @@ Nonstop Agents is free while it's being tested. It needs macOS 15 or later.
 
 ### In Terminal
 
-Paste this into Terminal. It downloads the latest release into Applications and opens it:
+Paste this into Terminal. It installs the latest release in Applications and opens it, and it also updates an installed copy:
 
 ```sh
-curl -fsSL https://github.com/marco-vrinssen/NonstopAgents/releases/latest/download/NonstopAgents.zip -o /tmp/NonstopAgents.zip && ditto -x -k /tmp/NonstopAgents.zip /Applications && open "/Applications/Nonstop Agents.app"
+pkill -x "Nonstop Agents"; curl -fsSL https://github.com/marco-vrinssen/NonstopAgents/releases/latest/download/NonstopAgents.zip -o /tmp/NonstopAgents.zip && rm -rf "/Applications/Nonstop Agents.app" && ditto -x -k /tmp/NonstopAgents.zip /Applications && open "/Applications/Nonstop Agents.app"
 ```
 
-macOS shows no warning this way. Its notarization check applies to files downloaded in a browser, and the app isn't notarized yet, because that needs a paid Apple developer account. You can read the code here before running it. To update, quit Nonstop Agents and run the command again.
+macOS shows no warning this way. Its notarization check applies to files downloaded in a browser, and the app isn't notarized yet, because that needs a paid Apple developer account. You can read the code here before running it. The app updates itself from then on.
 
 ### In the browser
 
@@ -25,7 +25,7 @@ macOS shows no warning this way. Its notarization check applies to files downloa
 3. macOS says it can't check the app for malware. Click Done.
 4. Open System Settings, then Privacy & Security, scroll down to Security and click "Open Anyway" next to Nonstop Agents. Confirm with your password.
 
-From then on it opens normally. For an update, download the new release and replace the app.
+From then on it opens normally, and the app updates itself.
 
 ## In short
 
@@ -33,6 +33,7 @@ From then on it opens normally. For an update, download the new release and repl
 - Click the sparkle to turn the app on or off.
 - Right-click for the menu: the number of working agents, every agent named after its task with a green dot while it works and its folder and session one click away, stay awake indefinitely or for a while, with the lid closed, settings.
 - A welcome window on first launch says what the app does and what it reads, and offers opening at login and notifications. Both are off until you choose them, and macOS asks for notifications only then.
+- Updates come through the app. It asks GitHub once a day for a new version, offers it in the menu and installs it with one click, or on its own if you turn that on in Settings. That daily check is its only network request.
 - In English, German, Spanish and French.
 
 ## Build
@@ -43,7 +44,7 @@ Open `NonstopAgents.xcodeproj` in Xcode 26 or later and run the "Nonstop Agents"
 | --- | --- |
 | `./build.sh` | The app at `build/Nonstop Agents.app`, signed ad hoc with its sandbox entitlements |
 | `./build.sh run` | Builds and launches it |
-| `./build.sh release` | A universal Release build, zipped as `build/NonstopAgents-<version>.zip` and `build/NonstopAgents.zip` for a GitHub release |
+| `./build.sh release` | A universal Release build, zipped as `build/NonstopAgents-<version>.zip` and `build/NonstopAgents.zip`, plus Sparkle's signed `build/appcast.xml` |
 | `./build.sh check` | Runs the detection self-check |
 | `./build.sh check --live` | Prints this Mac's agents and their state every 5 seconds |
 | `./build.sh icon` | Renders `Design/Icon/AppIcon.svg` into the app icon set |
@@ -61,6 +62,7 @@ The app is sandboxed, as the Mac App Store requires.
 | Claude Code status and titles | A read-only sandbox exception for `~/.claude`. If App Review declines it, the user allows access once, from the welcome window or the menu |
 | Open folder | Finder reveals the folder; the sandbox doesn't let the app open it |
 | Open session | Brings the agent's app to the front, without picking a window or tab |
+| Updates | Sparkle 2, which checks a signed `appcast.xml` on GitHub and installs through its helper outside the sandbox. Outgoing network access serves only that. A Mac App Store build must drop it, since updates there come through the store |
 
 Plugging the charger in or out with the lid closed can still put some Apple Silicon Macs to sleep. A root `pmset` helper would cover it, but App Review rule 2.4.5(v) forbids root helpers, so Nonstop Agents has none.
 
