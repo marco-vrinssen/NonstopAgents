@@ -6,12 +6,24 @@ Keeps your Mac awake while AI agents work, lid closed included, so they run nons
 
 Nonstop Agents is free while it's being tested. It needs macOS 15 or later.
 
-1. Download `NonstopAgents-1.0.zip` from the [latest release](../../releases/latest) and unzip it.
+### In Terminal
+
+Paste this into Terminal. It downloads the latest release into Applications and opens it:
+
+```sh
+curl -fsSL https://github.com/marco-vrinssen/NonstopAgents/releases/latest/download/NonstopAgents.zip -o /tmp/NonstopAgents.zip && ditto -x -k /tmp/NonstopAgents.zip /Applications && open "/Applications/Nonstop Agents.app"
+```
+
+macOS shows no warning this way. Its notarization check applies to files downloaded in a browser, and the app isn't notarized yet, because that needs a paid Apple developer account. You can read the code here before running it. To update, quit Nonstop Agents and run the command again.
+
+### In the browser
+
+1. Download `NonstopAgents.zip` from the [latest release](../../releases/latest) and unzip it.
 2. Move "Nonstop Agents" to your Applications folder and open it.
-3. macOS says it can't check the app for malware, because the app isn't notarized by Apple, which needs a paid developer account. Click Done.
+3. macOS says it can't check the app for malware. Click Done.
 4. Open System Settings, then Privacy & Security, scroll down to Security and click "Open Anyway" next to Nonstop Agents. Confirm with your password.
 
-From then on it opens normally. To see exactly what it does first, read the code here or build it yourself, as described under Build. For an update, download the new release and replace the app.
+From then on it opens normally. For an update, download the new release and replace the app.
 
 ## In short
 
@@ -29,7 +41,7 @@ Open `NonstopAgents.xcodeproj` in Xcode 26 or later and run the "Nonstop Agents"
 | --- | --- |
 | `./build.sh` | The app at `build/Nonstop Agents.app`, signed ad hoc with its sandbox entitlements |
 | `./build.sh run` | Builds and launches it |
-| `./build.sh release` | A universal Release build, zipped as `build/NonstopAgents-<version>.zip` for a GitHub release |
+| `./build.sh release` | A universal Release build, zipped as `build/NonstopAgents-<version>.zip` and `build/NonstopAgents.zip` for a GitHub release |
 | `./build.sh check` | Runs the detection self-check |
 | `./build.sh check --live` | Prints this Mac's agents and their state every 5 seconds |
 | `./build.sh icon` | Renders `Design/Icon/AppIcon.svg` into the app icon set |
