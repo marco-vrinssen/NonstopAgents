@@ -3,7 +3,7 @@ import Sparkle
 
 @main
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @preconcurrency SPUStandardUserDriverDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @preconcurrency SPUStandardUserDriverDelegate, SPUUpdaterDelegate {
     static func main() {
         if CommandLine.arguments.contains("--lid-guard") { Clamshell.runGuard() }
         let app = NSApplication.shared
@@ -22,12 +22,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @preco
     private var updateOptions: UpdateOptions?
     /// A version found by a background check, offered in the menu until the user looks at it.
     private var availableUpdate: String?
+    /// Sparkle's relaunch into a new version, held back while the Mac is kept awake.
+    private var pendingInstall: (() -> Void)?
     private var menuOpen = false
     private var shownMenu = ""
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         model = Model()
-        updater = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: self)
+        updater = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: self, userDriverDelegate: self)
         NSApp.mainMenu = Self.keyMenu()
         item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = item.button {
@@ -87,6 +89,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @preco
         button.appearsDisabled = model.isPaused
         button.toolTip = label
         button.setAccessibilityLabel(label)
+        if let install = pendingInstall, !model.holding {
+            pendingInstall = nil
+            install()
+        }
         if menuOpen, shownMenu != menuSignature { build() }
     }
 
@@ -158,7 +164,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @preco
     }
 
     private var menuSignature: String {
-        model.stateTitle + model.summary + "\(model.manualChoice ?? -1)\(model.manualRemaining ?? "")\(model.lidMode)\(model.lidUnavailable)\(model.claudeAccess)\(availableUpdate ?? "")"
+        model.stateTitle + model.summary + "\(String(describing: model.manual))\(model.manualRemaining ?? "")\(model.lidMode)\(model.lidSubtitle ?? "")"
+            + "\(model.claudeAccess)\(availableUpdate ?? "")\(pendingInstall == nil)"
             + model.runs.map { "\($0.id)\($0.working)\($0.title)" }.joined()
     }
 
@@ -174,6 +181,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @preco
         power.state = model.powerState
         power.onStateImage = NSImage(named: NSImage.statusAvailableName)
         power.mixedStateImage = NSImage(named: NSImage.statusPartiallyAvailableName)
+        power.subtitle = model.pauseReason
         menu.addItem(power)
         menu.addItem(.separator())
 
@@ -203,28 +211,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @preco
         menu.addItem(.sectionHeader(title: String(localized: "Stay awake")))
         let always = action(String(localized: "Indefinitely"), #selector(keepAwake(_:)))
         always.tag = 0
-        always.state = model.manualChoice == 0 ? .on : .off
+        always.state = model.manual == .indefinitely ? .on : .off
         menu.addItem(always)
-        let timed = NSMenuItem(title: String(localized: "For a while"), action: nil, keyEquivalent: "")
-        timed.subtitle = model.manualRemaining.map { String(localized: "\($0) left") }
-        timed.state = (model.manualChoice ?? 0) > 0 ? .on : .off
-        timed.submenu = NSMenu()
-        for minutes in [15, 30, 60, 120, 240] {
-            let entry = action(Self.duration.string(from: TimeInterval(minutes * 60)) ?? "", #selector(keepAwake(_:)))
-            entry.tag = minutes
-            entry.state = model.manualChoice == minutes ? .on : .off
-            timed.submenu?.addItem(entry)
-        }
-        menu.addItem(timed)
+        menu.addItem(timedItem())
         let lid = action(String(localized: "With lid closed"), #selector(toggleLid))
         lid.state = model.lidMode ? .on : .off
-        lid.subtitle = model.lidUnavailable ? String(localized: "Not available on this Mac") : nil
+        lid.subtitle = model.lidSubtitle
         menu.addItem(lid)
         menu.addItem(.separator())
 
         menu.addItem(action(String(localized: "About Nonstop Agents"), #selector(showAbout)))
-        let update = availableUpdate.map { String(localized: "Update to \($0)…") } ?? String(localized: "Check for updates…")
-        menu.addItem(action(update, #selector(checkForUpdates)))
+        if pendingInstall != nil {
+            let waiting = NSMenuItem(title: String(localized: "Update installs when your Mac may sleep"), action: nil, keyEquivalent: "")
+            waiting.isEnabled = false
+            menu.addItem(waiting)
+        } else {
+            let update = availableUpdate.map { String(localized: "Update to \($0)…") } ?? String(localized: "Check for updates…")
+            menu.addItem(action(update, #selector(checkForUpdates)))
+        }
         let settings = action(String(localized: "Settings"), #selector(openSettings), key: ",")
         // macOS 27 adds a gear to Settings, which would push its title out of line with the others.
         if #available(macOS 27, *) { settings.preferredImageVisibility = .hidden }
@@ -232,13 +236,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @preco
         menu.addItem(action(String(localized: "Quit Nonstop Agents"), #selector(NSApplication.terminate(_:)), key: "q", target: NSApp))
     }
 
-    /// Menu durations such as "15 minutes" or "1 hour", in the user's language.
-    private static let duration: DateComponentsFormatter = {
-        let formatter = DateComponentsFormatter()
-        formatter.allowedUnits = [.hour, .minute]
-        formatter.unitsStyle = .full
-        return formatter
-    }()
+    /// "For a while": the preset durations plus the last one chosen, then a running timer's extension and the custom choices.
+    private func timedItem() -> NSMenuItem {
+        let timed = NSMenuItem(title: String(localized: "For a while"), action: nil, keyEquivalent: "")
+        timed.subtitle = model.manualRemaining.map { String(localized: "\($0) left") }
+        switch model.manual {
+        case .minutes, .until: timed.state = .on
+        default: timed.state = .off
+        }
+        let options = NSMenu()
+        for minutes in Set([15, 30, 60, 120, 240, model.lastMinutes]).filter({ $0 > 0 }).sorted() {
+            let entry = action(Model.duration(minutes), #selector(keepAwake(_:)))
+            entry.tag = minutes
+            entry.state = model.manual == .minutes(minutes) ? .on : .off
+            options.addItem(entry)
+        }
+        options.addItem(.separator())
+        if model.manualRemaining != nil {
+            options.addItem(action(String(localized: "Add 15 minutes"), #selector(extend)))
+        }
+        options.addItem(action(String(localized: "Other duration…"), #selector(chooseDuration)))
+        let until = action(String(localized: "Until a time…"), #selector(chooseTime))
+        if case .until(let end) = model.manual {
+            until.state = .on
+            until.subtitle = end.formatted(date: .omitted, time: .shortened)
+        }
+        options.addItem(until)
+        timed.submenu = options
+        return timed
+    }
 
     private func agentItem(_ run: AgentRun) -> NSMenuItem {
         let entry = NSMenuItem(title: run.title, action: nil, keyEquivalent: "")
@@ -280,7 +306,51 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @preco
 
     @objc private func togglePower() { model.toggle() }
     @objc private func keepAwake(_ sender: NSMenuItem) {
-        if model.manualChoice == sender.tag { model.stopKeepingAwake() } else { model.keepAwake(minutes: sender.tag) }
+        let choice: KeepAwake = sender.tag == 0 ? .indefinitely : .minutes(sender.tag)
+        if model.manual == choice { model.stopKeepingAwake() } else { model.keepAwake(choice) }
+    }
+    @objc private func extend() { model.extend() }
+
+    /// Asks for a duration from 1 minute to 24 hours, starting from the last one chosen.
+    @objc private func chooseDuration() {
+        let start = model.lastMinutes > 0 ? model.lastMinutes : 45
+        let hours = NSTextField(string: String(start / 60)), minutes = NSTextField(string: String(start % 60))
+        for field in [hours, minutes] {
+            field.alignment = .right
+            field.widthAnchor.constraint(equalToConstant: 48).isActive = true
+        }
+        let row = NSStackView(views: [hours, NSTextField(labelWithString: String(localized: "hours")),
+                                      minutes, NSTextField(labelWithString: String(localized: "minutes"))])
+        row.setFrameSize(row.fittingSize)
+        guard ask(String(localized: "Keep the Mac awake for"), String(localized: "From 1 minute to 24 hours."), row, focus: hours) else { return }
+        let h = min(max(Int(hours.stringValue) ?? 0, 0), 24), m = min(max(Int(minutes.stringValue) ?? 0, 0), 59)
+        let total = min(max(h * 60 + m, 1), KeepAwake.maxMinutes)
+        model.lastMinutes = total
+        model.keepAwake(.minutes(total))
+    }
+
+    /// Asks for an end time; a time already past today means tomorrow.
+    @objc private func chooseTime() {
+        if case .until = model.manual { model.stopKeepingAwake(); return }
+        let picker = NSDatePicker()
+        picker.datePickerStyle = .textFieldAndStepper
+        picker.datePickerElements = .hourMinute
+        picker.dateValue = Date().addingTimeInterval(3600)
+        picker.sizeToFit()
+        guard ask(String(localized: "Keep the Mac awake until"), String(localized: "A time within the next 24 hours."), picker, focus: picker) else { return }
+        model.keepAwake(.until(KeepAwake.next(picker.dateValue, after: Date())))
+    }
+
+    private func ask(_ title: String, _ detail: String, _ accessory: NSView, focus: NSView) -> Bool {
+        let alert = NSAlert()
+        alert.messageText = title
+        alert.informativeText = detail
+        alert.accessoryView = accessory
+        alert.addButton(withTitle: String(localized: "Keep awake"))
+        alert.addButton(withTitle: String(localized: "Cancel"))
+        alert.window.initialFirstResponder = focus
+        NSApp.activate()
+        return alert.runModal() == .alertFirstButtonReturn
     }
     @objc private func toggleLid() { model.lidMode.toggle() }
     @objc private func allowClaudeAccess() { model.grantClaudeAccess() }
@@ -323,6 +393,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @preco
 
     func standardUserDriverWillFinishUpdateSession() {
         availableUpdate = nil
+    }
+
+    // Relaunching drops the sleep hold and the lid setting; with the lid closed the Mac would sleep mid-run.
+    func updater(_ updater: SPUUpdater, shouldPostponeRelaunchForUpdate item: SUAppcastItem, untilInvokingBlock installHandler: @escaping () -> Void) -> Bool {
+        guard model.holding else { return false }
+        pendingInstall = installHandler
+        refresh()
+        return true
     }
 
     // MARK: Settings
@@ -389,7 +467,7 @@ extension Model {
     /// Off, or on but held back by battery or heat.
     var isPaused: Bool {
         switch status {
-        case .off, .battery, .hot: true
+        case .off, .battery, .unplugged, .hot: true
         default: false
         }
     }
@@ -400,7 +478,7 @@ extension Model {
     var stateTitle: String {
         switch status {
         case .off: String(localized: "Nonstop Agents is off")
-        case .battery, .hot: String(localized: "Nonstop Agents is paused")
+        case .battery, .unplugged, .hot: String(localized: "Nonstop Agents is paused")
         default: String(localized: "Nonstop Agents is on")
         }
     }
@@ -409,7 +487,7 @@ extension Model {
     var powerState: NSControl.StateValue {
         switch status {
         case .off: .off
-        case .battery, .hot, .failed: .mixed
+        case .battery, .unplugged, .hot, .failed: .mixed
         default: .on
         }
     }
@@ -424,10 +502,48 @@ extension Model {
                 : String(localized: "Keeping the Mac awake, \(Self.remaining(until)) left")
         case .off: return workingCount > 0 ? String(localized: "\(agents), Mac may sleep") : String(localized: "Mac sleeps as usual")
         case .battery(let level): return String(localized: "Battery at \(level)%, Mac may sleep")
+        case .unplugged: return String(localized: "Unplugged, Mac may sleep")
         case .hot: return String(localized: "Mac is hot and may sleep")
         case .failed: return String(localized: "macOS declined to keep the Mac awake")
         }
     }
+
+    /// Why the Mac may sleep although agents work or a keep-awake runs, under the switch.
+    var pauseReason: String? {
+        switch status {
+        case .battery(let level): String(localized: "Paused at \(level)% battery")
+        case .unplugged: String(localized: "Paused while unplugged")
+        case .hot: String(localized: "Paused while the Mac is hot")
+        case .failed: String(localized: "macOS declined to keep the Mac awake")
+        default: nil
+        }
+    }
+
+    /// Whether closing the lid keeps the Mac awake right now, or why not.
+    var lidSubtitle: String? {
+        guard lidMode else { return nil }
+        if lidUnavailable { return String(localized: "Not available on this Mac") }
+        switch lidStop {
+        case .time(let minutes): return String(localized: "Stopped after \(Self.duration(minutes)) with the lid closed")
+        case .battery(let minutes): return String(localized: "Stopped after \(Self.duration(minutes)) on battery")
+        case nil: break
+        }
+        if !battery.known { return String(localized: "Off, macOS reports no battery state") }
+        if lidReady { return String(localized: "Ready to close the lid") }
+        return holding ? String(localized: "Getting ready, keep the lid open") : String(localized: "Holds while the Mac is kept awake")
+    }
+
+    /// Durations such as "15 minutes" or "1 hour", in the user's language.
+    static func duration(_ minutes: Int) -> String {
+        durationNames.string(from: TimeInterval(minutes * 60)) ?? ""
+    }
+
+    private static let durationNames: DateComponentsFormatter = {
+        let formatter = DateComponentsFormatter()
+        formatter.allowedUnits = [.hour, .minute]
+        formatter.unitsStyle = .full
+        return formatter
+    }()
 
     /// Time left such as "1 hr, 30 min" or "45 sec", in the user's language.
     static func remaining(_ date: Date) -> String {

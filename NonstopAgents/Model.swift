@@ -42,6 +42,7 @@ enum Status: Equatable {
     case manual(until: Date)
     case off
     case battery(Int)
+    case unplugged
     case hot
     case failed
 }
@@ -51,9 +52,16 @@ enum Status: Equatable {
 final class Model {
     // Settings, persisted in UserDefaults.
     var enabled = Model.load("enabled", true) { didSet { save("enabled", enabled); tick() } }
-    var lidMode = Model.load("lidMode", false) { didSet { save("lidMode", lidMode); lidUnavailable = false; tick() } }
+    var lidMode = Model.load("lidMode", false) { didSet { save("lidMode", lidMode); lidUnavailable = false; lidStop = nil; tick() } }
     var batteryFloor = min(50, Model.load("batteryFloor", 20)) { didSet { save("batteryFloor", batteryFloor); tick() } }
+    var requireCharger = Model.load("requireCharger", false) { didSet { save("requireCharger", requireCharger); tick() } }
     var thermalGuard = Model.load("thermalGuard", true) { didSet { save("thermalGuard", thermalGuard); tick() } }
+    var keepDisplayAwake = Model.load("keepDisplayAwake", false) { didSet { save("keepDisplayAwake", keepDisplayAwake); tick() } }
+    /// Minutes the lid may stay closed, and stay closed on battery, before the Mac may sleep; 0 means no limit.
+    var lidLimit = Model.load("lidLimit", 0) { didSet { save("lidLimit", lidLimit); tick() } }
+    var lidBatteryLimit = Model.load("lidBatteryLimit", 0) { didSet { save("lidBatteryLimit", lidBatteryLimit); tick() } }
+    /// The last duration chosen with Other duration, in minutes; 0 until one is chosen.
+    var lastMinutes = Model.load("lastMinutes", 0) { didSet { save("lastMinutes", lastMinutes) } }
     var notificationsEnabled = Model.load("notificationsEnabled", true) { didSet { save("notificationsEnabled", notificationsEnabled); requestNotifications() } }
     var notifyFinished = Model.load("notifyFinished", true) { didSet { save("notifyFinished", notifyFinished) } }
     var notifyBattery = Model.load("notifyBattery", true) { didSet { save("notifyBattery", notifyBattery) } }
@@ -68,8 +76,10 @@ final class Model {
     private(set) var status = Status.idle
     private(set) var battery = Battery.read()
     private(set) var manualUntil: Date?
-    /// The chosen keep-awake duration in minutes, 0 for until turned off.
-    private(set) var manualChoice: Int?
+    private(set) var manual: KeepAwake?
+    /// The Mac is kept awake right now.
+    private(set) var holding = false
+    private(set) var lidStop: LidStop?
     /// macOS has notifications for Nonstop Agents turned off.
     private(set) var notificationsDenied = false
     /// macOS refused the lid setting; retried only when lid mode is turned on again.
@@ -79,16 +89,22 @@ final class Model {
     var onChange: (() -> Void)?
 
     private let tracker = Tracker()
-    private let assertion = Assertion()
+    private let assertion = Assertion(kIOPMAssertionTypePreventUserIdleSystemSleep, reason: "Nonstop Agents is keeping the Mac awake while AI agents work")
+    private let display = Assertion(kIOPMAssertionTypePreventUserIdleDisplaySleep, reason: "Nonstop Agents is keeping the display on while AI agents work")
     private let lidGuard = PipeGuard()
     private var lidHeld = false
+    private var lidStretch = LidStretch()
     private var timer: Timer?
     private var wasWorking = false
     private var notifiedBattery = false
+    private var notifiedUnplugged = false
     private var notifiedHeat = false
     private var known: [pid_t: AgentRun] = [:]
 
     var workingCount: Int { runs.filter(\.working).count }
+
+    /// macOS accepted the lid setting, so closing the lid keeps the Mac awake.
+    var lidReady: Bool { lidMode && lidGuard.ready }
 
     init() {
         openClaudeFolder()
@@ -103,6 +119,7 @@ final class Model {
                 log.error("Lid closed mode unavailable, guard exited with \(status)")
             }
         }
+        lidGuard.onReady = { [weak self] in self?.tick() }
         let timer = Timer(timeInterval: 5, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.rescan() }
         }
@@ -122,15 +139,25 @@ final class Model {
 
     func toggle() { enabled.toggle() }
 
-    func keepAwake(minutes: Int) {
-        manualUntil = minutes > 0 ? Date().addingTimeInterval(TimeInterval(minutes) * 60) : .distantFuture
-        manualChoice = minutes
+    func keepAwake(_ choice: KeepAwake) {
+        manual = choice
+        switch choice {
+        case .indefinitely: manualUntil = .distantFuture
+        case .minutes(let minutes): manualUntil = Date().addingTimeInterval(TimeInterval(minutes) * 60)
+        case .until(let date): manualUntil = date
+        }
         if !enabled { enabled = true } else { tick() }
+    }
+
+    /// Adds 15 minutes to a timed keep-awake, up to 24 hours from now.
+    func extend() {
+        guard let until = manualUntil, until != .distantFuture else { return }
+        keepAwake(.until(min(until.addingTimeInterval(15 * 60), Date().addingTimeInterval(TimeInterval(KeepAwake.maxMinutes) * 60))))
     }
 
     func stopKeepingAwake() {
         manualUntil = nil
-        manualChoice = nil
+        manual = nil
         tick()
     }
 
@@ -161,6 +188,7 @@ final class Model {
     func shutdown() {
         timer?.invalidate()
         assertion.hold(false)
+        display.hold(false)
         releaseLid()
     }
 
@@ -211,25 +239,34 @@ final class Model {
         battery = Battery.read()
         if let until = manualUntil, until <= now {
             manualUntil = nil
-            manualChoice = nil
+            manual = nil
         }
 
         let count = workingCount
         let manual = manualUntil != nil
         let wanted = count > 0 || manual
 
-        let lowBattery = battery.onBattery && (battery.level ?? 100) <= batteryFloor
         let lidClosed = Clamshell.isClosed
+        // With the lid closed the floor also applies on a charger too weak to charge.
+        let lowBattery = (battery.level ?? 100) <= batteryFloor && (battery.onBattery || (lidClosed && !battery.charging))
+        let unplugged = requireCharger && battery.onBattery
         let thermal = ProcessInfo.processInfo.thermalState
         let hot = thermalGuard && (thermal == .critical || (lidClosed && thermal == .serious))
 
-        // Only system sleep is held. Display sleep and the sleep timers stay with macOS.
-        let hold = enabled && wanted && !lowBattery && !hot
+        // System sleep is held, and display sleep only when chosen. The sleep timers stay with macOS.
+        let hold = enabled && wanted && !lowBattery && !unplugged && !hot
         assertion.hold(hold)
-        if hold && lidMode { holdLid() } else { releaseLid() }
+        display.hold(hold && keepDisplayAwake)
+        holding = hold && !assertion.failed
+
+        // A lid limit lets go of the lid setting until the lid opens again.
+        lidStretch.update(lidClosed: lidClosed, held: lidHeld, battery: battery.onBattery, now: now)
+        if !lidClosed { lidStop = nil } else if lidStop == nil { lidStop = lidStretch.stop(limit: lidLimit, batteryLimit: lidBatteryLimit) }
+        if hold && lidMode && lidStop == nil && battery.known { holdLid() } else { releaseLid() }
 
         let previous = status
         status = !enabled ? .off
+            : unplugged && wanted ? .unplugged
             : lowBattery && wanted ? .battery(battery.level ?? 0)
             : hot && wanted ? .hot
             : assertion.failed ? .failed
@@ -241,7 +278,8 @@ final class Model {
             let names = runs.filter(\.working).map { "\($0.agent.name) \($0.id)" }.joined(separator: ", ")
             log.notice("\(String(describing: self.status), privacy: .public), lid \(self.lidHeld), working: \(names, privacy: .public)")
         }
-        notifyTransitions(count: enabled ? count : 0, lowBattery: lowBattery && wanted && enabled, hot: hot && wanted && enabled)
+        notifyTransitions(count: enabled ? count : 0, lowBattery: lowBattery && wanted && enabled,
+                          unplugged: unplugged && wanted && enabled, hot: hot && wanted && enabled)
         onChange?()
     }
 
@@ -324,13 +362,15 @@ final class Model {
         }
     }
 
-    private func notifyTransitions(count: Int, lowBattery: Bool, hot: Bool) {
+    private func notifyTransitions(count: Int, lowBattery: Bool, unplugged: Bool, hot: Bool) {
         // Only when nobody is at the Mac; at the desk the count already says it.
         let away = CGEventSource.secondsSinceLastEventType(.hidSystemState, eventType: CGEventType(rawValue: ~0)!) > 120
         if notifyFinished, wasWorking, count == 0, away { post(String(localized: "Agents finished"), String(localized: "Your Mac can sleep now.")) }
         wasWorking = count > 0
         if notifyBattery, lowBattery, !notifiedBattery { post(String(localized: "Nonstop Agents paused"), String(localized: "Battery is at \(battery.level ?? 0)%. Your Mac can sleep now.")) }
         notifiedBattery = lowBattery
+        if notifyBattery, unplugged, !notifiedUnplugged { post(String(localized: "Nonstop Agents paused"), String(localized: "Your Mac is unplugged. It can sleep now.")) }
+        notifiedUnplugged = unplugged
         if notifyHeat, hot, !notifiedHeat { post(String(localized: "Nonstop Agents paused"), String(localized: "Your Mac is hot. It can sleep now.")) }
         notifiedHeat = hot
     }
@@ -346,6 +386,33 @@ final class Model {
         content.title = title
         content.body = body
         UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil))
+    }
+
+    // MARK: Bug reports
+
+    /// Versions, hardware, power and the detected tools for a bug report, without task titles or folders.
+    var diagnostics: String {
+        let info = Bundle.main.infoDictionary ?? [:]
+        var size = 0
+        sysctlbyname("hw.model", nil, &size, nil, 0)
+        var bytes = [UInt8](repeating: 0, count: size)
+        sysctlbyname("hw.model", &bytes, &size, nil, 0)
+        #if arch(arm64)
+        let architecture = "arm64"
+        #else
+        let architecture = "x86_64"
+        #endif
+        let tools = runs.map { "\($0.agent.name) \($0.working ? "working" : "quiet")" }.joined(separator: ", ")
+        return """
+        Nonstop Agents \(info["CFBundleShortVersionString"] as? String ?? "?") (\(info["CFBundleVersion"] as? String ?? "?"))
+        macOS \(ProcessInfo.processInfo.operatingSystemVersionString), \(String(decoding: bytes.prefix { $0 != 0 }, as: UTF8.self)), \(architecture)
+        Status: \(status), on \(enabled), holding \(holding), keep-awake \(manual.map { "\($0)" } ?? "none")
+        Lid: mode \(lidMode), closed \(Clamshell.isClosed), ready \(lidReady), unavailable \(lidUnavailable), stop \(lidStop.map { "\($0)" } ?? "none")
+        Power: battery \(battery.level.map { "\($0)%" } ?? "none"), on battery \(battery.onBattery), charging \(battery.charging), readable \(battery.known), thermal \(ProcessInfo.processInfo.thermalState.rawValue)
+        Settings: floor \(batteryFloor)%, sleep unplugged \(requireCharger), heat guard \(thermalGuard), display \(keepDisplayAwake), lid limit \(lidLimit) min, lid battery limit \(lidBatteryLimit) min
+        Claude Code access: \(claudeAccess)
+        Agents: \(tools.isEmpty ? "none" : tools)
+        """
     }
 
     // MARK: Persistence

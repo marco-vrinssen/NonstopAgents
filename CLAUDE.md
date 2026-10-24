@@ -5,11 +5,13 @@
 - The name is Nonstop Agents, with "Nonstop" as one word. Never write "NonStop", which is how HPE styles its servers, or "Non-Stop".
 - Native macOS components and stock behavior only, as `DESIGN.md` describes. No tab or window animations. The only forced behaviors are hiding the gear macOS 27 adds to Settings in the menu and ordering the settings window to the front.
 - The status item is a template image, not an attributed title. A title's sparkle attachment blurs at 1x, and titles ignore `appearsDisabled`, which dims off and paused.
-- No settings that change macOS sleep beyond holding idle sleep.
+- No settings that change macOS sleep beyond holding idle sleep, the lid setting and, when the user turns it on, display sleep.
 - The app icon is the app's own sparkle. Never put an SF Symbol or a look-alike in the app icon or a logo; Apple's terms forbid it.
 - In the App Sandbox, `NSWorkspace.open` and `selectFile(_:inFileViewerRootedAtPath:)` can't show a folder outside the container, but `activateFileViewerSelecting` and `openApplication(at:)` work. Tested on 2026-10-08.
 - Every user-facing string goes through `String(localized:)` or a SwiftUI literal and has German, Spanish and French in `NonstopAgents/Localizable.xcstrings`. `xcodebuild -exportLocalizations` lists every key the code uses, but only with an empty catalog; otherwise it also lists the catalog's own and stale entries.
 - There is one edition, the sandboxed App Store app. Build it with Xcode or `./build.sh`.
+- The deployment target is macOS 14.4, the first version with menu item subtitles. Check new APIs against it.
+- The code is GPL-3.0. Contributions come in under the same license, as `CONTRIBUTING.md` says.
 
 ## Checks
 
@@ -20,6 +22,7 @@
 - Restarting the app drops its sleep hold. With the display off and nobody at the Mac, the Mac sleeps at once. Run `caffeinate -i -t 30 &` before `pkill -x "Nonstop Agents"`.
 - A menu item with a subtitle has the accessibility name "title, subtitle". Script the menu with that name.
 - Once the app has saved a setting, `defaults write com.marcovrinssen.nonstopagents` writes into its sandbox container. Before that it writes to `~/Library/Preferences`, which the sandboxed app never reads, so write to `~/Library/Containers/com.marcovrinssen.nonstopagents/Data/Library/Preferences/com.marcovrinssen.nonstopagents` instead.
+- `AppleClamshellCausesSleep` in `IOPMrootDomain` doesn't change while the lid guard holds; macOS updates it only on a lid event. The guard's `ready` line on stdout is the confirmation that macOS accepted the setting. Tested on 2026-10-24.
 - Show the welcome window again with `defaults write <container path from above> onboarded -bool false`, and pick a language with `open "build/Nonstop Agents.app" --args -AppleLanguages "(de)"`.
 
 ## Release

@@ -3,17 +3,22 @@ import IOKit
 import IOKit.ps
 import IOKit.pwr_mgt
 
-/// Holds the one power assertion that keeps the Mac from idle sleep. Display sleep stays with macOS.
+/// Holds one power assertion, such as the one that keeps the Mac from idle sleep.
 final class Assertion {
+    private let type: String
+    private let reason: String
     private var id: IOPMAssertionID = 0
     private(set) var failed = false
+
+    init(_ type: String, reason: String) {
+        self.type = type
+        self.reason = reason
+    }
 
     func hold(_ on: Bool) {
         failed = false
         if on, id == 0 {
-            let reason = "Nonstop Agents is keeping the Mac awake while AI agents work" as CFString
-            if IOPMAssertionCreateWithName(kIOPMAssertionTypePreventUserIdleSystemSleep as CFString,
-                                           IOPMAssertionLevel(kIOPMAssertionLevelOn), reason, &id) != kIOReturnSuccess {
+            if IOPMAssertionCreateWithName(type as CFString, IOPMAssertionLevel(kIOPMAssertionLevelOn), reason as CFString, &id) != kIOReturnSuccess {
                 id = 0
                 failed = true
             }
@@ -51,16 +56,20 @@ struct Battery {
     /// Charge in percent, nil on Macs without a battery.
     var level: Int?
     var onBattery = false
+    var charging = false
+    /// False when macOS reports no readable power state, which makes the lid setting unsafe to hold.
+    var known = true
 
     static func read() -> Battery {
         guard let info = IOPSCopyPowerSourcesInfo()?.takeRetainedValue(),
-              let list = IOPSCopyPowerSourcesList(info)?.takeRetainedValue() as? [CFTypeRef] else { return Battery() }
+              let list = IOPSCopyPowerSourcesList(info)?.takeRetainedValue() as? [CFTypeRef] else { return Battery(known: false) }
         for source in list {
             guard let d = IOPSGetPowerSourceDescription(info, source)?.takeUnretainedValue() as? [String: Any],
-                  d[kIOPSTypeKey] as? String == kIOPSInternalBatteryType,
-                  let current = d[kIOPSCurrentCapacityKey] as? Int,
-                  let max = d[kIOPSMaxCapacityKey] as? Int, max > 0 else { continue }
-            return Battery(level: current * 100 / max, onBattery: d[kIOPSPowerSourceStateKey] as? String == kIOPSBatteryPowerValue)
+                  d[kIOPSTypeKey] as? String == kIOPSInternalBatteryType else { continue }
+            guard let current = d[kIOPSCurrentCapacityKey] as? Int,
+                  let max = d[kIOPSMaxCapacityKey] as? Int, max > 0 else { return Battery(known: false) }
+            return Battery(level: current * 100 / max, onBattery: d[kIOPSPowerSourceStateKey] as? String == kIOPSBatteryPowerValue,
+                           charging: d[kIOPSIsChargingKey] as? Bool ?? false)
         }
         return Battery()
     }
@@ -100,6 +109,9 @@ enum Clamshell {
         let connect = setSleepDisabled(true)
         guard connect != 0 else { exit(1) }
 
+        // Tells the app that macOS accepted the setting, so it can say the lid may close.
+        FileHandle.standardOutput.write(Data("ready\n".utf8))
+
         func restore() -> Never {
             setSleepDisabled(false, connection: connect)
             IOServiceClose(connect)
@@ -127,6 +139,9 @@ final class PipeGuard {
     private var process: Process?
     private var pipe: Pipe?
     var onExit: ((Int32) -> Void)?
+    var onReady: (() -> Void)?
+    /// The child reported that its setting holds.
+    private(set) var ready = false
 
     var isRunning: Bool { process?.isRunning ?? false }
 
@@ -135,16 +150,26 @@ final class PipeGuard {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: executable)
         p.arguments = arguments
-        let pipe = Pipe()
+        let pipe = Pipe(), output = Pipe()
         p.standardInput = pipe
-        p.standardOutput = FileHandle.nullDevice
+        p.standardOutput = output
         p.standardError = FileHandle.nullDevice
+        output.fileHandleForReading.readabilityHandler = { [weak self] handle in
+            handle.readabilityHandler = nil
+            guard !handle.availableData.isEmpty else { return }
+            DispatchQueue.main.async {
+                guard let self, self.process === p else { return }
+                self.ready = true
+                self.onReady?()
+            }
+        }
         p.terminationHandler = { [weak self] ended in
             let status = ended.terminationStatus
             DispatchQueue.main.async {
                 guard let self, self.process === ended else { return }
                 self.process = nil
                 self.pipe = nil
+                self.ready = false
                 self.onExit?(status)
             }
         }
@@ -158,9 +183,60 @@ final class PipeGuard {
     func stop() {
         guard let p = process else { return }
         process = nil
+        ready = false
         try? pipe?.fileHandleForWriting.close()
         pipe = nil
         let deadline = Date().addingTimeInterval(2)
         while p.isRunning, Date() < deadline { usleep(20_000) }
+    }
+}
+
+/// Why the lid setting was let go while the lid stayed closed.
+enum LidStop: Equatable {
+    case time(Int)
+    case battery(Int)
+}
+
+/// How long the lid has stayed closed while the Mac is kept awake, and how much of that ran on battery.
+/// Opening the lid starts over; plugging in pauses the battery time but never resets it.
+struct LidStretch {
+    private(set) var closed: TimeInterval = 0
+    private(set) var onBattery: TimeInterval = 0
+    private var last: Date?
+    private var lastOnBattery = false
+
+    mutating func update(lidClosed: Bool, held: Bool, battery: Bool, now: Date) {
+        guard lidClosed else { self = LidStretch(); return }
+        if held, let last {
+            let step = now.timeIntervalSince(last)
+            closed += step
+            // A step that started or ended on battery counts as battery time.
+            if battery || lastOnBattery { onBattery += step }
+        }
+        last = held ? now : nil
+        lastOnBattery = battery
+    }
+
+    /// The limit reached first, in minutes; 0 means no limit.
+    func stop(limit: Int, batteryLimit: Int) -> LidStop? {
+        if limit > 0, closed >= TimeInterval(limit * 60) { return .time(limit) }
+        if batteryLimit > 0, onBattery >= TimeInterval(batteryLimit * 60) { return .battery(batteryLimit) }
+        return nil
+    }
+}
+
+/// A keep-awake chosen in the menu.
+enum KeepAwake: Equatable {
+    case indefinitely
+    case minutes(Int)
+    case until(Date)
+
+    /// The longest keep-awake, 24 hours.
+    static let maxMinutes = 24 * 60
+
+    /// The next time the clock shows this time's hour and minute, today or tomorrow.
+    static func next(_ time: Date, after now: Date, calendar: Calendar = .current) -> Date {
+        let parts = calendar.dateComponents([.hour, .minute], from: time)
+        return calendar.nextDate(after: now, matching: parts, matchingPolicy: .nextTime) ?? now.addingTimeInterval(24 * 3600)
     }
 }

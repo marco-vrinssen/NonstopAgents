@@ -181,4 +181,25 @@ appendLine(#"{"type":"ai-title","aiTitle":"Something newer","sessionId":"s1"}"#)
 assert(settledTitle() == "Landing page", "a name the user gave stays")
 try? FileManager.default.removeItem(at: home)
 
+// Lid limits: time counts only while held with the lid closed, plugging in keeps the battery time, opening resets.
+var stretch = LidStretch()
+let t0 = Date(timeIntervalSince1970: 0)
+stretch.update(lidClosed: true, held: true, battery: true, now: t0)
+stretch.update(lidClosed: true, held: true, battery: true, now: t0 + 600)
+stretch.update(lidClosed: true, held: true, battery: false, now: t0 + 1200)
+stretch.update(lidClosed: true, held: true, battery: false, now: t0 + 1800)
+assert(stretch.closed == 1800 && stretch.onBattery == 1200, "the step that ended on the charger still counts")
+assert(stretch.stop(limit: 0, batteryLimit: 20) == .battery(20))
+assert(stretch.stop(limit: 30, batteryLimit: 20) == .time(30), "the overall limit wins")
+assert(stretch.stop(limit: 0, batteryLimit: 0) == nil)
+stretch.update(lidClosed: false, held: true, battery: false, now: t0 + 1900)
+assert(stretch.closed == 0 && stretch.onBattery == 0)
+
+// An end time already past today means tomorrow, a later one today.
+var utc = Calendar(identifier: .gregorian)
+utc.timeZone = TimeZone(identifier: "UTC")!
+let noon = Date(timeIntervalSince1970: 12 * 3600)
+assert(KeepAwake.next(Date(timeIntervalSince1970: 9 * 3600), after: noon, calendar: utc) == Date(timeIntervalSince1970: 33 * 3600))
+assert(KeepAwake.next(Date(timeIntervalSince1970: 18 * 3600 + 1800), after: noon, calendar: utc) == Date(timeIntervalSince1970: 18 * 3600 + 1800))
+
 print("Checks passed")

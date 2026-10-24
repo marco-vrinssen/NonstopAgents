@@ -263,6 +263,28 @@
         }
       }
     },
+    "A time within the next 24 hours." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eine Uhrzeit innerhalb der nächsten 24 Stunden."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Una hora dentro de las próximas 24 horas."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Une heure dans les 24 prochaines heures."
+          }
+        }
+      }
+    },
     "About Nonstop Agents" : {
       "localizations" : {
         "de" : {
@@ -303,6 +325,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ajouter"
+          }
+        }
+      }
+    },
+    "Add 15 minutes" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "15 Minuten hinzufügen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Añadir 15 minutos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajouter 15 minutes"
           }
         }
       }
@@ -483,24 +527,24 @@
         }
       }
     },
-    "Applies on battery, also with the lid closed. Now at %@." : {
+    "Applies on battery, and with the lid closed also on a charger that doesn't charge. Now at %@." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gilt im Batteriebetrieb, auch bei geschlossenem Deckel. Aktuell %@."
+            "value" : "Gilt im Batteriebetrieb und bei geschlossenem Deckel auch an einem Netzteil, das nicht lädt. Aktuell %@."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Se aplica con batería, también con la tapa cerrada. Ahora al %@."
+            "value" : "Se aplica con batería y, con la tapa cerrada, también con un cargador que no carga. Ahora al %@."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "S’applique sur batterie, aussi écran rabattu. Actuellement à %@."
+            "value" : "S’applique sur batterie et, écran rabattu, aussi sur un chargeur qui ne charge pas. Actuellement à %@."
           }
         }
       }
@@ -659,6 +703,28 @@
         }
       }
     },
+    "Bug reports" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fehlerberichte"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Informes de errores"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rapports de bug"
+          }
+        }
+      }
+    },
     "Cancel" : {
       "localizations" : {
         "de" : {
@@ -791,6 +857,50 @@
         }
       }
     },
+    "Copied" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kopiert"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copiado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copié"
+          }
+        }
+      }
+    },
+    "Copies the app and macOS versions, the Mac model, the power state and the names of the detected tools, without titles or folders. Paste them into the issue." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kopiert die Versionen der App und von macOS, das Mac-Modell, den Energiestatus und die Namen der erkannten Tools, ohne Titel oder Ordner. Füge sie in den Bericht ein."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copia las versiones de la app y de macOS, el modelo de Mac, el estado de energía y los nombres de las herramientas detectadas, sin títulos ni carpetas. Pégalos en el informe."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copie les versions de l’app et de macOS, le modèle de Mac, l’état de l’alimentation et les noms des outils détectés, sans titres ni dossiers. Collez-les dans le rapport."
+          }
+        }
+      }
+    },
     "Copy" : {
       "localizations" : {
         "de" : {
@@ -809,6 +919,50 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Copier"
+          }
+        }
+      }
+    },
+    "Copy details" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Details kopieren"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copiar detalles"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copier les détails"
+          }
+        }
+      }
+    },
+    "Counts from when the lid closes. Opening it starts over." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zählt ab dem Schließen des Deckels. Beim Öffnen beginnt es von vorn."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cuenta desde que se cierra la tapa. Al abrirla, empieza de nuevo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compte à partir du moment où l’écran est rabattu. L’ouvrir remet à zéro."
           }
         }
       }
@@ -857,6 +1011,28 @@
         }
       }
     },
+    "Display" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Display"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pantalla"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Écran"
+          }
+        }
+      }
+    },
     "For a while" : {
       "localizations" : {
         "de" : {
@@ -875,6 +1051,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Pendant un moment"
+          }
+        }
+      }
+    },
+    "From 1 minute to 24 hours." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Von 1 Minute bis 24 Stunden."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "De 1 minuto a 24 horas."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "De 1 minute à 24 heures."
           }
         }
       }
@@ -919,6 +1117,50 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Commencer"
+          }
+        }
+      }
+    },
+    "Getting ready, keep the lid open" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wird vorbereitet, Deckel noch offen lassen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preparando, deja la tapa abierta"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Préparation, gardez l’écran ouvert"
+          }
+        }
+      }
+    },
+    "Holds while the Mac is kept awake" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Greift, solange der Mac wach gehalten wird"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Actúa mientras el Mac se mantiene activo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agit tant que le Mac est gardé éveillé"
           }
         }
       }
@@ -989,6 +1231,72 @@
         }
       }
     },
+    "Keep display on while the Mac is kept awake" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Display eingeschaltet lassen, solange der Mac wach gehalten wird"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mantener la pantalla encendida mientras el Mac se mantiene activo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Garder l’écran allumé tant que le Mac est gardé éveillé"
+          }
+        }
+      }
+    },
+    "Keep the Mac awake for" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mac wach halten für"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mantener el Mac activo durante"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Garder le Mac éveillé pendant"
+          }
+        }
+      }
+    },
+    "Keep the Mac awake until" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mac wach halten bis"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mantener el Mac activo hasta"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Garder le Mac éveillé jusqu’à"
+          }
+        }
+      }
+    },
     "Keeping the Mac awake until you stop it" : {
       "localizations" : {
         "de" : {
@@ -1033,6 +1341,50 @@
         }
       }
     },
+    "Let Mac sleep after this long on battery with the lid closed" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ruhezustand nach dieser Zeit im Batteriebetrieb mit geschlossenem Deckel erlauben"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dejar que el Mac entre en reposo tras este tiempo con batería y la tapa cerrada"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Laisser le Mac suspendre son activité après cette durée sur batterie, écran rabattu"
+          }
+        }
+      }
+    },
+    "Let Mac sleep after this long with the lid closed" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ruhezustand nach dieser Zeit mit geschlossenem Deckel erlauben"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dejar que el Mac entre en reposo tras este tiempo con la tapa cerrada"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Laisser le Mac suspendre son activité après cette durée écran rabattu"
+          }
+        }
+      }
+    },
     "Let Mac sleep when reaching high temperatures" : {
       "localizations" : {
         "de" : {
@@ -1073,6 +1425,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Laisser le Mac suspendre son activité à ce niveau de batterie"
+          }
+        }
+      }
+    },
+    "Let Mac sleep when unplugged" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ruhezustand ohne Netzteil erlauben"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dejar que el Mac entre en reposo al desconectarlo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Laisser le Mac suspendre son activité une fois débranché"
           }
         }
       }
@@ -1275,6 +1649,28 @@
         }
       }
     },
+    "No limit" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine Grenze"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sin límite"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sans limite"
+          }
+        }
+      }
+    },
     "Nonstop Agents %@ is available" : {
       "localizations" : {
         "de" : {
@@ -1297,24 +1693,24 @@
         }
       }
     },
-    "Nonstop Agents asks GitHub once a day. Updates install the next time it quits or your Mac restarts. This is version %@." : {
+    "Nonstop Agents asks GitHub once a day. Updates install the next time it quits or your Mac restarts, never while it keeps your Mac awake. This is version %@." : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Nonstop Agents fragt einmal am Tag bei GitHub nach. Updates werden installiert, wenn die App das nächste Mal beendet wird oder dein Mac neu startet. Dies ist Version %@."
+            "value" : "Nonstop Agents fragt einmal am Tag bei GitHub nach. Updates werden installiert, wenn die App das nächste Mal beendet wird oder dein Mac neu startet, nie während sie deinen Mac wach hält. Dies ist Version %@."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Nonstop Agents consulta GitHub una vez al día. Las actualizaciones se instalan la próxima vez que se cierre la app o se reinicie tu Mac. Esta es la versión %@."
+            "value" : "Nonstop Agents consulta GitHub una vez al día. Las actualizaciones se instalan la próxima vez que se cierre la app o se reinicie tu Mac, nunca mientras mantiene tu Mac activo. Esta es la versión %@."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Nonstop Agents consulte GitHub une fois par jour. Les mises à jour s’installent la prochaine fois que l’app quitte ou que votre Mac redémarre. Ceci est la version %@."
+            "value" : "Nonstop Agents consulte GitHub une fois par jour. Les mises à jour s’installent la prochaine fois que l’app quitte ou que votre Mac redémarre, jamais pendant qu’elle garde votre Mac éveillé. Ceci est la version %@."
           }
         }
       }
@@ -1517,6 +1913,28 @@
         }
       }
     },
+    "Off, macOS reports no battery state" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aus, macOS meldet keinen Batteriestatus"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Desactivado, macOS no informa del estado de la batería"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Désactivé, macOS ne signale aucun état de batterie"
+          }
+        }
+      }
+    },
     "One click for Claude Code" : {
       "localizations" : {
         "de" : {
@@ -1627,6 +2045,28 @@
         }
       }
     },
+    "Other duration…" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Andere Dauer …"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Otra duración…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autre durée…"
+          }
+        }
+      }
+    },
     "Other processes" : {
       "localizations" : {
         "de" : {
@@ -1649,6 +2089,28 @@
         }
       }
     },
+    "Otherwise the display sleeps on its usual schedule." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sonst schaltet sich das Display wie gewohnt aus."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Si no, la pantalla se apaga como de costumbre."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sinon, l’écran se met en veille comme d’habitude."
+          }
+        }
+      }
+    },
     "Paste" : {
       "localizations" : {
         "de" : {
@@ -1667,6 +2129,138 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Coller"
+          }
+        }
+      }
+    },
+    "Paused at %lld%% battery" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pausiert bei %lld %% Batterie"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En pausa al %lld %% de batería"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En pause à %lld %% de batterie"
+          }
+        }
+      }
+    },
+    "Paused while the Mac is hot" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pausiert, solange der Mac heiß ist"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En pausa mientras el Mac está caliente"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En pause tant que le Mac est chaud"
+          }
+        }
+      }
+    },
+    "Paused while unplugged" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pausiert ohne Netzteil"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En pausa mientras está desconectado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En pause tant qu’il est débranché"
+          }
+        }
+      }
+    },
+    "Pauses as soon as the charger is disconnected." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pausiert, sobald das Netzteil getrennt wird."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se pausa en cuanto se desconecta el cargador."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se met en pause dès que le chargeur est débranché."
+          }
+        }
+      }
+    },
+    "Plugging in pauses this time but doesn't reset it." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mit Netzteil pausiert diese Zeit, wird aber nicht zurückgesetzt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Al conectar el cargador, este tiempo se pausa pero no se reinicia."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Brancher le chargeur met ce temps en pause sans le remettre à zéro."
+          }
+        }
+      }
+    },
+    "Power" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Energie"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Energía"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Énergie"
           }
         }
       }
@@ -1759,6 +2353,28 @@
         }
       }
     },
+    "Ready to close the lid" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bereit, den Deckel zu schließen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Listo para cerrar la tapa"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prêt à rabattre l’écran"
+          }
+        }
+      }
+    },
     "Redo" : {
       "localizations" : {
         "de" : {
@@ -1799,6 +2415,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Supprimer"
+          }
+        }
+      }
+    },
+    "Report an issue…" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Problem melden …"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Informar de un problema…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Signaler un problème…"
           }
         }
       }
@@ -1957,6 +2595,94 @@
         }
       }
     },
+    "Stopped after %@ on battery" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nach %@ im Batteriebetrieb beendet"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Detenido tras %@ con batería"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arrêté après %@ sur batterie"
+          }
+        }
+      }
+    },
+    "Stopped after %@ with the lid closed" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nach %@ mit geschlossenem Deckel beendet"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Detenido tras %@ con la tapa cerrada"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Arrêté après %@ écran rabattu"
+          }
+        }
+      }
+    },
+    "Support" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Support"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Soporte"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Assistance"
+          }
+        }
+      }
+    },
+    "The menu says “Ready to close the lid” once macOS has accepted the setting." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Menü zeigt „Bereit, den Deckel zu schließen“, sobald macOS die Einstellung übernommen hat."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El menú indica «Listo para cerrar la tapa» cuando macOS ha aceptado el ajuste."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le menu indique « Prêt à rabattre l’écran » dès que macOS a accepté le réglage."
+          }
+        }
+      }
+    },
     "The sparkle shows how many agents are working. Click it to turn Nonstop Agents on or off, right-click for the menu." : {
       "localizations" : {
         "de" : {
@@ -2019,6 +2745,72 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Annuler"
+          }
+        }
+      }
+    },
+    "Unplugged, Mac may sleep" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ohne Netzteil, Ruhezustand möglich"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Desconectado, el Mac puede entrar en reposo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Débranché, le Mac peut suspendre son activité"
+          }
+        }
+      }
+    },
+    "Until a time…" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bis zu einer Uhrzeit …"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hasta una hora…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jusqu’à une heure…"
+          }
+        }
+      }
+    },
+    "Update installs when your Mac may sleep" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Update wird installiert, sobald dein Mac ruhen darf"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La actualización se instala cuando tu Mac pueda entrar en reposo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La mise à jour s’installera quand votre Mac pourra suspendre son activité"
           }
         }
       }
@@ -2133,6 +2925,28 @@
         }
       }
     },
+    "When pausing for battery" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bei einer Pause wegen der Batterie"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Al pausar por la batería"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En cas de pause liée à la batterie"
+          }
+        }
+      }
+    },
     "When reaching high temperatures" : {
       "localizations" : {
         "de" : {
@@ -2151,28 +2965,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "À haute température"
-          }
-        }
-      }
-    },
-    "When reaching the battery level" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Beim eingestellten Batteriestand"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Al alcanzar el nivel de batería"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Au niveau de batterie choisi"
           }
         }
       }
@@ -2243,6 +3035,28 @@
         }
       }
     },
+    "Your Mac is unplugged. It can sleep now." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dein Mac ist nicht am Netzteil. Er kann jetzt in den Ruhezustand wechseln."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tu Mac está desconectado. Ya puede entrar en reposo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Votre Mac est débranché. Il peut maintenant suspendre son activité."
+          }
+        }
+      }
+    },
     "Your Mac stays awake while AI agents work, so they run nonstop. When the last one finishes, your Mac sleeps as usual." : {
       "localizations" : {
         "de" : {
@@ -2287,6 +3101,28 @@
         }
       }
     },
+    "hours" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stunden"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "horas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "heures"
+          }
+        }
+      }
+    },
     "macOS declined to keep the Mac awake" : {
       "localizations" : {
         "de" : {
@@ -2305,6 +3141,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "macOS a refusé de garder le Mac éveillé"
+          }
+        }
+      }
+    },
+    "minutes" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Minuten"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "minutos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "minutes"
           }
         }
       }
