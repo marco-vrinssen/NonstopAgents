@@ -6,7 +6,7 @@ Keeps your Mac awake while AI agents work, lid closed included, so they run nons
 
 ## Install
 
-Nonstop Agents is free while it's being tested. It needs macOS 15 or later.
+Nonstop Agents is free and open source under GPL-3.0. It needs macOS 14.4 or later. If it saves you a night of babysitting, you can [sponsor it](https://github.com/sponsors/marco-vrinssen).
 
 ### In Terminal
 
@@ -31,7 +31,7 @@ From then on it opens normally, and the app updates itself.
 
 - The menu bar shows a pill with the number of working agents, the sparkle, and the time left on a timed keep-awake cut out of it. Dimmed means the app is off or paused.
 - Click the sparkle to turn the app on or off.
-- Right-click for the menu: the number of working agents, every agent named after its task with a green dot while it works and its folder and session one click away, stay awake indefinitely or for a while, with the lid closed, settings.
+- Right-click for the menu: the number of working agents and why the app pauses, every agent named after its task with a green dot while it works and its folder and session one click away, stay awake indefinitely, for a while or until a time, with the lid closed, settings.
 - A welcome window on first launch says what the app does and what it reads, and offers opening at login and notifications. Both are off until you choose them, and macOS asks for notifications only then.
 - Updates come through the app. It asks GitHub once a day for a new version, offers it in the menu and installs it with one click, or on its own if you turn that on in Settings. That daily check is its only network request.
 - In English, German, Spanish and French.
@@ -45,11 +45,11 @@ Open `NonstopAgents.xcodeproj` in Xcode 26 or later and run the "Nonstop Agents"
 | `./build.sh` | The app at `build/Nonstop Agents.app`, signed ad hoc with its sandbox entitlements |
 | `./build.sh run` | Builds and launches it |
 | `./build.sh release` | A universal Release build, zipped as `build/NonstopAgents-<version>.zip` and `build/NonstopAgents.zip`, plus Sparkle's signed `build/appcast.xml` |
-| `./build.sh check` | Runs the detection self-check |
+| `./build.sh check` | Runs the self-check for detection, lid limits and end times |
 | `./build.sh check --live` | Prints this Mac's agents and their state every 5 seconds |
 | `./build.sh icon` | Renders `Design/Icon/AppIcon.svg` into the app icon set |
 
-Builds are universal (Apple Silicon and Intel) and need macOS 15 or later. For App Store Connect, set your team under Signing and Capabilities and archive the scheme in Xcode. The version lives in `Config/Info.plist`, the bundle ID `com.marcovrinssen.nonstopagents` in the Xcode project.
+Builds are universal (Apple Silicon and Intel) and need macOS 14.4 or later. For App Store Connect, set your team under Signing and Capabilities and archive the scheme in Xcode. The version lives in `Config/Info.plist`, the bundle ID `com.marcovrinssen.nonstopagents` in the Xcode project.
 
 ## Sandbox
 
@@ -62,7 +62,7 @@ The app is sandboxed, as the Mac App Store requires.
 | Claude Code status and titles | A read-only sandbox exception for `~/.claude`. If App Review declines it, the user allows access once, from the welcome window or the menu |
 | Open folder | Finder reveals the folder; the sandbox doesn't let the app open it |
 | Open session | Brings the agent's app to the front, without picking a window or tab |
-| Updates | Sparkle 2, which checks a signed `appcast.xml` on GitHub and installs through its helper outside the sandbox. Outgoing network access serves only that. A Mac App Store build must drop it, since updates there come through the store |
+| Updates | Sparkle 2, which checks a signed `appcast.xml` on GitHub and installs through its helper outside the sandbox. Relaunching into a new version waits while the Mac is kept awake. Outgoing network access serves only that. A Mac App Store build must drop it, since updates there come through the store |
 
 Plugging the charger in or out with the lid closed can still put some Apple Silicon Macs to sleep. A root `pmset` helper would cover it, but App Review rule 2.4.5(v) forbids root helpers, so Nonstop Agents has none.
 
@@ -76,7 +76,7 @@ Nonstop Agents scans the process table every 5 seconds and keeps the agents it r
 4. Its process tree uses CPU: above 2 % of a core while it streams or runs tools. Idle agents measured 0.1 to 0.8 %.
 5. It runs a tool process started in the last 10 minutes, so a silent `sleep` or network wait counts. Services started with the agent, such as MCP servers, do not.
 
-An agent that reports its own state is released the moment it says it is done. Any other agent stays working for two minutes after its last signal, which covers a model thinking without output. Nonstop Agents only blocks idle system sleep; display sleep and the sleep timers stay with macOS.
+An agent that reports its own state is released the moment it says it is done. Any other agent stays working for two minutes after its last signal, which covers a model thinking without output. Nonstop Agents blocks idle system sleep, and display sleep only if you turn that on in Settings; the sleep timers stay with macOS.
 
 Each agent is named after its task. Claude Code sessions use the name set with `/rename`, else the title Claude Code writes for the conversation. Other agents use their project folder.
 
@@ -94,9 +94,11 @@ An editor, terminal or agent that is merely open never counts.
 
 ## Safety
 
-- Lid-closed mode disables lid sleep only while the app keeps the Mac awake. A guard process restores it when the app quits or crashes.
-- On battery, Nonstop Agents stops at the level you set, 20% by default, also with the lid closed.
-- Nonstop Agents lets the Mac sleep when it runs hot, earlier with the lid closed.
+- Lid-closed mode disables lid sleep only while the app keeps the Mac awake. A guard process restores it when the app quits or crashes, and the menu says "Ready to close the lid" only after macOS accepted the setting.
+- On battery, Nonstop Agents stops at the level you set, 20% by default. With the lid closed that level also applies on a charger too weak to charge.
+- Optionally it stops as soon as you unplug, after a set time with the lid closed, or after a set time on battery with the lid closed. Plugging in pauses that battery time but never resets it.
+- It lets the lid close into sleep when macOS reports no battery state, and when it runs hot, earlier with the lid closed.
+- An update never relaunches the app while it keeps the Mac awake, since that would drop the hold mid-run.
 
 ## Layout
 
@@ -107,6 +109,12 @@ An editor, terminal or agent that is merely open never counts.
 | `Checks/` | Detection self-check and live monitor |
 | `DESIGN.md` | Design language for the menu bar, menu, settings and welcome window |
 
+## Contributing
+
+Bug reports and pull requests are welcome. See `CONTRIBUTING.md`. For a bug, copy the details from Settings, General, Support and paste them into the issue.
+
 ## License
 
-Copyright 2026 Marco Vrinssen. All rights reserved. You may read the code and build the app for your own use, but not copy, redistribute or sell it. See `LICENSE`.
+Copyright 2026 Marco Vrinssen. Nonstop Agents is free software under the GNU General Public License, version 3. You may use, study, change and share it, and changed versions you distribute stay under the same license. See `LICENSE`.
+
+[Sponsoring](https://github.com/sponsors/marco-vrinssen) keeps it free and maintained.

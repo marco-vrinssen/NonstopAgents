@@ -8,6 +8,7 @@ import SwiftUI
 final class SettingsDraft {
     var newName = ""
     var confirmHeatOff = false
+    var copied = false
 }
 
 /// The update options. Sparkle keeps them in the app's defaults.
@@ -33,6 +34,7 @@ enum SettingsWindow {
         let draft = SettingsDraft()
         let panes: [(String, String, AnyView)] = [
             (String(localized: "General"), "gearshape", AnyView(GeneralPane(model: model, draft: draft, updates: updates))),
+            (String(localized: "Power"), "bolt", AnyView(PowerPane(model: model, draft: draft))),
             (String(localized: "Agents"), "sparkles", AnyView(AgentsPane(model: model, draft: draft))),
         ]
         let tabs = NSTabViewController()
@@ -71,7 +73,7 @@ private struct GeneralPane: View {
                 Toggle("Send notifications", isOn: $model.notificationsEnabled)
                 Group {
                     Toggle("When agents finish while you are away", isOn: $model.notifyFinished)
-                    Toggle("When reaching the battery level", isOn: $model.notifyBattery)
+                    Toggle("When pausing for battery", isOn: $model.notifyBattery)
                     Toggle("When reaching high temperatures", isOn: $model.notifyHeat)
                 }
                 .toggleStyle(.checkbox)
@@ -91,16 +93,68 @@ private struct GeneralPane: View {
                 }
             }
 
+            Section {
+                Group {
+                    Toggle("Automatically check for updates", isOn: $updates.automaticChecks)
+                    Toggle("Automatically install updates", isOn: $updates.automaticInstall)
+                        .disabled(!updates.automaticChecks)
+                }
+                .toggleStyle(.checkbox)
+            } header: {
+                Text("Updates")
+            } footer: {
+                Text("Nonstop Agents asks GitHub once a day. Updates install the next time it quits or your Mac restarts, never while it keeps your Mac awake. This is version \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "").")
+            }
+
+            Section {
+                // An HStack, not LabeledContent, so each button keeps its own accessibility name.
+                HStack {
+                    Text("Bug reports")
+                    Spacer()
+                    Button {
+                        NSPasteboard.general.clearContents()
+                        draft.copied = NSPasteboard.general.setString(model.diagnostics, forType: .string)
+                    } label: {
+                        draft.copied ? Text("Copied") : Text("Copy details")
+                    }
+                    Button("Report an issue…") {
+                        NSWorkspace.shared.open(URL(string: "https://github.com/marco-vrinssen/NonstopAgents/issues/new")!)
+                    }
+                }
+            } header: {
+                Text("Support")
+            } footer: {
+                Text("Copies the app and macOS versions, the Mac model, the power state and the names of the detected tools, without titles or folders. Paste them into the issue.")
+            }
+        }
+        .pane()
+        .onAppear {
+            model.refreshNotificationStatus()
+            draft.copied = false
+        }
+    }
+}
+
+private struct PowerPane: View {
+    @Bindable var model: Model
+    @Bindable var draft: SettingsDraft
+
+    var body: some View {
+        Form {
             Section("Sleep exceptions") {
                 Picker(selection: $model.batteryFloor) {
                     ForEach(Array(stride(from: 5, through: 50, by: 5)), id: \.self) { Text(Self.percent($0)).tag($0) }
                 } label: {
                     Text("Let Mac sleep when reaching this battery level")
                     if let level = model.battery.level {
-                        Text("Applies on battery, also with the lid closed. Now at \(Self.percent(level)).")
+                        Text("Applies on battery, and with the lid closed also on a charger that doesn't charge. Now at \(Self.percent(level)).")
                     } else {
                         Text("Applies on battery. This Mac has none.")
                     }
+                }
+                Toggle(isOn: $model.requireCharger) {
+                    Text("Let Mac sleep when unplugged")
+                    Text("Pauses as soon as the charger is disconnected.")
                 }
                 Toggle(isOn: Binding(get: { model.thermalGuard }, set: { on in
                     // Turning it off can let a closed Mac overheat, so that needs a confirmation.
@@ -112,20 +166,34 @@ private struct GeneralPane: View {
             }
 
             Section {
-                Group {
-                    Toggle("Automatically check for updates", isOn: $updates.automaticChecks)
-                    Toggle("Automatically install updates", isOn: $updates.automaticInstall)
-                        .disabled(!updates.automaticChecks)
+                Picker(selection: $model.lidLimit) {
+                    Text("No limit").tag(0)
+                    ForEach([60, 120, 240, 480], id: \.self) { Text(Model.duration($0)).tag($0) }
+                } label: {
+                    Text("Let Mac sleep after this long with the lid closed")
+                    Text("Counts from when the lid closes. Opening it starts over.")
                 }
-                .toggleStyle(.checkbox)
+                Picker(selection: $model.lidBatteryLimit) {
+                    Text("No limit").tag(0)
+                    ForEach([15, 30, 60, 120], id: \.self) { Text(Model.duration($0)).tag($0) }
+                } label: {
+                    Text("Let Mac sleep after this long on battery with the lid closed")
+                    Text("Plugging in pauses this time but doesn't reset it.")
+                }
             } header: {
-                Text("Updates")
+                Text("With lid closed")
             } footer: {
-                Text("Nonstop Agents asks GitHub once a day. Updates install the next time it quits or your Mac restarts. This is version \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "").")
+                Text("The menu says “Ready to close the lid” once macOS has accepted the setting.")
+            }
+
+            Section("Display") {
+                Toggle(isOn: $model.keepDisplayAwake) {
+                    Text("Keep display on while the Mac is kept awake")
+                    Text("Otherwise the display sleeps on its usual schedule.")
+                }
             }
         }
         .pane()
-        .onAppear(perform: model.refreshNotificationStatus)
         .alert("Keep Mac awake at high temperatures?", isPresented: $draft.confirmHeatOff) {
             Button("Keep awake", role: .destructive) { model.thermalGuard = false }
             Button("Cancel", role: .cancel) {}

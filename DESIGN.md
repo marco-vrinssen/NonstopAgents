@@ -36,10 +36,12 @@ A standard NSMenu, top to bottom:
 
 Every title starts at the same edge. Marks sit in the state column, where checkmarks go: a checkmark for options, and a stock AppKit status image for state.
 
-1. The switch: the number of working agents, such as "2 Nonstop Agents working", without a subtitle. Its state column shows a green status image when on and a yellow one when paused, and stays empty when off. Clicking it turns the app on or off. While it is on, the Mac stays awake until the last agent finishes.
+1. The switch: the number of working agents, such as "2 Nonstop Agents working". A subtitle appears only while paused and says why, such as "Paused at 18% battery" or "Paused while unplugged". Its state column shows a green status image when on and a yellow one when paused, and stays empty when off. Clicking it turns the app on or off. While it is on, the Mac stays awake until the last agent finishes.
 2. Agents: a section header and up to 10 agent items, working ones first. Each agent that keeps the Mac awake right now carries the same green status image. More agents go into an "N more" submenu, which macOS scrolls when it gets long; a menu cannot scroll one section on its own. The title is the task: a Claude Code conversation title, else the project folder, else the tool. The subtitle is tool, folder and working or quiet. Each agent has a submenu with "Open folder", which reveals its folder in Finder, "Open session", which brings the app it runs in to the front, and its process and host app. When the app can't read `~/.claude`, "Allow access to Claude Code…" follows the agents while Claude Code runs.
-3. "Stay awake": a section header with "Indefinitely", "For a while" and "With lid closed" as checkmark items. "For a while" has a submenu of durations from 15 minutes to 4 hours, and its subtitle shows the time left. The running choice is checked, and choosing it again stops it.
-4. App, without a header: "About Nonstop Agents" (the standard About window), "Check for updates…", "Settings" with Command-comma, "Quit Nonstop Agents" with Command-Q. macOS 27 adds a gear to Settings; the app hides it so the title lines up.
+3. "Stay awake": a section header with "Indefinitely", "For a while" and "With lid closed" as checkmark items. The running choice is checked, and choosing it again stops it.
+   - "For a while" has a submenu of durations from 15 minutes to 4 hours, plus the last duration chosen with "Other duration…". Below a separator: "Add 15 minutes" while a timer runs, "Other duration…" and "Until a time…". Both ask in a standard alert, from 1 minute to 24 hours. Its subtitle shows the time left, and "Until a time…" shows the end time while it runs. Adding 15 minutes turns the timer into an end time.
+   - "With lid closed" has a subtitle while on: "Ready to close the lid" once the guard reports that macOS accepted the setting, "Holds while the Mac is kept awake" while nothing keeps it awake, or why it stopped, such as "Stopped after 4 hours with the lid closed".
+4. App, without a header: "About Nonstop Agents" (the standard About window), "Check for updates…", or the disabled "Update installs when your Mac may sleep" while an update waits, "Settings" with Command-comma, "Quit Nonstop Agents" with Command-Q. macOS 27 adds a gear to Settings; the app hides it so the title lines up.
 
 ## Updates
 
@@ -48,6 +50,7 @@ Sparkle 2 handles updates with its standard window, localized by Sparkle.
 - "Check for updates…" opens Sparkle's check. Its window shows the new version, the release notes from `Releases/<version>.html`, and "Install Update".
 - A check at launch shows Sparkle's window right away, since the app counts as in focus then. A later background check stays quiet: the menu item turns into "Update to 1.2…" and a notification says so, until the user opens it.
 - Settings, General, Updates: "Automatically check for updates", on by default, and "Automatically install updates", off by default. With the second on, Sparkle installs downloaded updates when the app quits or the Mac restarts.
+- Installing relaunches the app, which drops the sleep hold. While the Mac is kept awake, the relaunch waits until nothing keeps it awake.
 
 ## Settings
 
@@ -57,14 +60,15 @@ Settings hold only lasting options. Everything used day to day is in the menu.
 
 | Tab | Symbol | Contents |
 | --- | --- | --- |
-| General | `gearshape` | Login; notifications switch with a checkbox per notification; sleep exceptions for battery and heat |
+| General | `gearshape` | Login; notifications switch with a checkbox per notification; updates; support with "Copy details" and "Report an issue…" |
+| Power | `bolt` | Sleep exceptions for battery level, unplugging and heat; lid-closed limits for time and battery time; keeping the display on |
 | Agents | `sparkles` | A toggle per agent, apps, local models, other processes |
 
 Nonstop Agents stays a menu bar app while settings are open: no Dock icon and no Command-Tab entry. Settings come back through the menu. A hidden main menu carries Command-W, Command-Q and editing keys for the settings window.
 
 - General and Agents are SwiftUI grouped Forms. Every section has a header, which also sets the space between sections.
 - Section footers are plain text, so the form styles them as secondary notes. An option's own description is the second line of its label, which the form shows under it.
-- Option labels say what they let macOS do, in one pattern: "Let Mac sleep when reaching this battery level", "Let Mac sleep when reaching high temperatures".
+- Option labels say what they let macOS do, in one pattern: "Let Mac sleep when reaching this battery level", "Let Mac sleep when unplugged", "Let Mac sleep after this long with the lid closed". Limits default to "No limit" and unplugging to off, so the app keeps running nonstop until the user chooses otherwise.
 - Turning off the heat exception asks for confirmation in a standard alert first.
 - When macOS has notifications for Nonstop Agents turned off, the notifications section says so and links to System Settings.
 - Controls are system toggles, pickers, buttons and text fields, unstyled, in the user's accent color.
