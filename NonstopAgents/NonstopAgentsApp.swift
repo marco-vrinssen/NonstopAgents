@@ -254,6 +254,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @preco
         options.addItem(.separator())
         if model.manualRemaining != nil {
             options.addItem(action(String(localized: "Add 15 minutes"), #selector(extend)))
+            options.addItem(action(String(localized: "Stop timer"), #selector(stopTimer)))
         }
         options.addItem(action(String(localized: "Other duration…"), #selector(chooseDuration)))
         let until = action(String(localized: "Until a time…"), #selector(chooseTime))
@@ -310,6 +311,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, @preco
         if model.manual == choice { model.stopKeepingAwake() } else { model.keepAwake(choice) }
     }
     @objc private func extend() { model.extend() }
+    @objc private func stopTimer() { model.stopKeepingAwake() }
 
     /// Asks for a duration from 1 minute to 24 hours, starting from the last one chosen.
     @objc private func chooseDuration() {
