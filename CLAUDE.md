@@ -1,36 +1,43 @@
 # Nonstop Agents
 
+Menu bar app that keeps the Mac awake while AI agents work. `README.md` covers install, build, sandbox, detection and the file layout. `DESIGN.md` covers the UI.
+
 ## Rules
 
 - The name is Nonstop Agents, with "Nonstop" as one word. Never write "NonStop", which is how HPE styles its servers, or "Non-Stop".
 - Native macOS components and stock behavior only, as `DESIGN.md` describes. No tab or window animations. The only forced behaviors are hiding the gear macOS 27 adds to Settings in the menu and ordering the settings window to the front.
-- The status item is a template image, not an attributed title. A title's sparkle attachment blurs at 1x, and titles ignore `appearsDisabled`, which dims off and paused.
+- The status item is a template image, not an attributed title. A title's sparkle attachment blurs at 1x. Titles also ignore `appearsDisabled`, which dims off and paused.
 - No settings that change macOS sleep beyond holding idle sleep, the lid setting and, when the user turns it on, display sleep.
-- The app icon is the app's own sparkle. Never put an SF Symbol or a look-alike in the app icon or a logo; Apple's terms forbid it.
-- In the App Sandbox, `NSWorkspace.open` and `selectFile(_:inFileViewerRootedAtPath:)` can't show a folder outside the container, but `activateFileViewerSelecting` and `openApplication(at:)` work. Tested on 2026-10-08.
-- Every user-facing string goes through `String(localized:)` or a SwiftUI literal and has German, Spanish and French in `NonstopAgents/Localizable.xcstrings`. `xcodebuild -exportLocalizations` lists every key the code uses, but only with an empty catalog; otherwise it also lists the catalog's own and stale entries.
-- There is one edition, the sandboxed App Store app. Build it with Xcode or `./build.sh`.
+- The app icon is the app's own sparkle in `Design/Icon/AppIcon.svg`. Render it with `./build.sh icon`. Never put an SF Symbol or a look-alike in the app icon or a logo. Apple's terms forbid it.
+- There is one edition, the sandboxed App Store app. Build it with Xcode or `./build.sh`. It reads `~/.claude` through a read-only temporary exception in `Config/NonstopAgents.entitlements`.
+- In the App Sandbox, `NSWorkspace.open` and `selectFile(_:inFileViewerRootedAtPath:)` can't show a folder outside the container. `activateFileViewerSelecting` and `openApplication(at:)` work (tested 2026-10-08).
+- Every user-facing string goes through `String(localized:)` or a SwiftUI literal and has German, Spanish and French in `NonstopAgents/Localizable.xcstrings`. With an empty catalog, `xcodebuild -exportLocalizations` lists exactly the keys the code uses. Otherwise it also lists the catalog's own and stale entries.
 - The deployment target is macOS 14.4, the first version with menu item subtitles. Check new APIs against it.
+- Keep the bundle ID `com.marcovrinssen.nonstopagents`. It can't change after the first App Store upload.
 - The code is GPL-3.0. Contributions come in under the same license, as `CONTRIBUTING.md` says.
 
 ## Checks
 
-- Prefer `screencapture -l <window id>` and accessibility actions over synthetic mouse clicks. The user is often at the Mac, and moving the mouse during a synthetic click makes it miss.
+- Run `./build.sh check` after changing `Scanner.swift`, `Agents.swift` or `Power.swift`. It runs the detection self-check in `Checks/`. Add `--live` to watch this Mac's agents.
+- Prefer `screencapture -l <window id>` and accessibility actions over synthetic mouse clicks. Someone may be using the Mac. A mouse move during a synthetic click makes it miss.
 - `screencapture -l` can't capture the status item window. Capture it by region.
-- The status button's height follows the image, and its frame moves with the image's alignment rect. Measure the item's position from `alignmentRect(forFrame:)`.
+- The status menu opens only on a real right-click. `AXShowMenu` on the status item does nothing.
+- The status button's height follows the image. Its frame moves with the image's alignment rect, so measure the item's position from `alignmentRect(forFrame:)`.
 - macOS clips a status image to its alignment rect. An alignment rect that reaches past the image crops it, so move content inside a taller image instead.
 - Restarting the app drops its sleep hold. With the display off and nobody at the Mac, the Mac sleeps at once. Run `caffeinate -i -t 30 &` before `pkill -x "Nonstop Agents"`.
 - A menu item with a subtitle has the accessibility name "title, subtitle". Script the menu with that name.
-- Once the app has saved a setting, `defaults write com.marcovrinssen.nonstopagents` writes into its sandbox container. Before that it writes to `~/Library/Preferences`, which the sandboxed app never reads, so write to `~/Library/Containers/com.marcovrinssen.nonstopagents/Data/Library/Preferences/com.marcovrinssen.nonstopagents` instead.
-- `AppleClamshellCausesSleep` in `IOPMrootDomain` doesn't change while the lid guard holds; macOS updates it only on a lid event. The guard's `ready` line on stdout is the confirmation that macOS accepted the setting. Tested on 2026-10-24.
-- Show the welcome window again with `defaults write <container path from above> onboarded -bool false`, and pick a language with `open "build/Nonstop Agents.app" --args -AppleLanguages "(de)"`.
+- Once the app has saved a setting, `defaults write com.marcovrinssen.nonstopagents` writes into its sandbox container. Before that it writes to `~/Library/Preferences`, which the sandboxed app never reads. Write to `~/Library/Containers/com.marcovrinssen.nonstopagents/Data/Library/Preferences/com.marcovrinssen.nonstopagents` instead.
+- `AppleClamshellCausesSleep` in `IOPMrootDomain` doesn't change while the lid guard holds. macOS updates it only on a lid event. The guard's `ready` line on stdout confirms that macOS accepted the setting (tested 2026-10-24).
+- Show the welcome window again with `defaults write <container path from above> onboarded -bool false`. Pick a language with `open "build/Nonstop Agents.app" --args -AppleLanguages "(de)"`.
 
 ## Release
 
-Releases are free GitHub releases of an ad hoc signed build, because there is no paid Apple developer account. Never sign with an organization team, only a personal developer account. Sparkle installs updates and verifies them with the EdDSA key in the login keychain; its public half is `SUPublicEDKey` in `Config/Info.plist`.
+Releases are free GitHub releases of an ad hoc signed build, since there is no paid Apple developer account. Never set an organization's team in Xcode or `DEVELOPMENT_TEAM`. Only an individual developer account may sign. Sparkle installs updates and verifies them with the EdDSA key in the login keychain, service `https://sparkle-project.org`, account `ed25519`. Its public half is `SUPublicEDKey` in `Config/Info.plist`.
 
 1. Raise `CFBundleShortVersionString` and `CFBundleVersion` in `Config/Info.plist`. Sparkle compares `CFBundleVersion`, so it must grow with every release.
 2. Write the release notes as a short HTML list in `Releases/<version>.html`.
 3. Run `./build.sh release`. It writes both zips and `build/appcast.xml`.
-4. Run `gh release create v<version> build/NonstopAgents-<version>.zip build/NonstopAgents.zip build/appcast.xml --title "Nonstop Agents <version>"` with short notes. The app reads `appcast.xml` from the latest release, and the unversioned zip keeps the README's Terminal install working.
-5. Test an update end to end before publishing: serve `build/appcast` locally with an `http://localhost` download prefix, point a lower-versioned build at it with `defaults write <container path> SUFeedURL`, and remove that key afterwards.
+4. Test an update end to end before publishing. Serve `build/appcast` locally with an `http://localhost` download prefix, point a lower-versioned build at it with `defaults write <container path> SUFeedURL` and remove that key afterwards.
+5. Run `gh release create v<version> build/NonstopAgents-<version>.zip build/NonstopAgents.zip build/appcast.xml --title "Nonstop Agents <version>"` with short notes. The app reads `appcast.xml` from the latest release. The unversioned zip keeps the README's Terminal install working.
+
+App Store review notes must explain reading other apps' processes and arguments (guideline 5.1.1), the `IOPMrootDomain` clamshell call (2.5.1) and the read-only `~/.claude` exception.
